@@ -96,13 +96,4 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 ## 许可证
 
 本项目基于 [GNU Affero General Public License v3.0](./LICENSE)（AGPL-3.0）开源，
-Copyright © 2026 焰火工作室（StarFlame Studio）。
-
-AGPL-3.0 是强著佐权（strong copyleft）协议，要点：
-
-- 你可以自由使用、修改、分发本软件，包括商业使用。
-- 分发本软件或其衍生作品时，必须以同一协议开源，并提供完整对应源码。
-- **通过网络向用户提供服务（SaaS / 云部署）也视同分发**：必须向这些用户提供获取源码的途径。
-- 本软件按「现状」提供，不附带任何担保。
-
-如需在闭源商业场景中使用，请联系维护者获取商业授权。
+Copyright © 2022-2026 焰火工作室（StarFlame Studio）。
