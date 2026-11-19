@@ -1,0 +1,273 @@
+// 复刻自 Classworks apps/web/src/styles/index.scss
+
+@use 'glow';
+
+.grid-masonry {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  // 列间距 16px；行间距交给 HomeworkGrid 的 span 计算补出来（row-gap: 0 才不会累积余量）
+  column-gap: 16px;
+  row-gap: 0;
+  padding: 8px;
+  grid-auto-flow: dense;
+  grid-auto-rows: 1px;
+  align-items: start;
+}
+
+.grid-item {
+  width: 100%;
+  transition: all 0.2s ease;
+}
+
+// 卡片外层：不设高度，由内容自然撑开，
+// 这样网格测量的是真实内容高度，不会与行跨度互相牵制
+.grid-item-inner {
+  width: 100%;
+  display: block;
+}
+
+.grid-item .v-card {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  &:active {
+    transform: translateY(-2px);
+  }
+}
+
+.empty-card {
+  transform: scale(0.9);
+  opacity: 0.8;
+  grid-row-end: span 1 !important;
+}
+
+.empty-card:hover {
+  transform: scale(0.95);
+  opacity: 1;
+}
+
+.empty-subjects-container {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+// 列数由 HomeworkGrid 按容器宽度动态计算并写入内联样式
+// 这里只保留小屏下的卡片缩放，不再写死 grid-template-columns
+@media (max-width: 799px) {
+  .empty-card {
+    transform: scale(0.95);
+  }
+}
+
+/* ---------- 浮动工具栏主题配色 ---------- */
+/* 暗色：深色磨砂胶囊 + 浅色描边 */
+/* 通透态：低不透明度 + 高模糊，让卡片能透出下方内容 */
+.v-theme--dark .floating-toolbar {
+  background: rgba(30, 30, 30, 0.34) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.v-theme--dark .floating-toolbar:hover {
+  background: rgba(30, 30, 30, 0.52) !important;
+}
+
+.v-theme--dark .toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.v-theme--dark .date-picker-card {
+  background: rgba(30, 30, 30, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.v-theme--dark .side-action-btn {
+  background: rgba(30, 30, 30, 0.9) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+/* 亮色：白底卡片容易与浅色背景糊在一起，加深描边与阴影 */
+.v-theme--light .floating-toolbar {
+  background: rgba(255, 255, 255, 0.52) !important;
+  border: 1px solid rgba(28, 25, 23, 0.1) !important;
+  box-shadow: 0 12px 30px rgba(28, 25, 23, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+.v-theme--light .floating-toolbar:hover {
+  background: rgba(255, 255, 255, 0.74) !important;
+}
+
+.v-theme--light .toolbar-btn:hover {
+  background: rgba(28, 25, 23, 0.06) !important;
+}
+
+.v-theme--light .date-picker-card {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(28, 25, 23, 0.12) !important;
+}
+
+.v-theme--light .side-action-btn {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(28, 25, 23, 0.12) !important;
+}
+
+/* ---------- 亮暗主题切换动画 ---------- */
+
+/* View Transitions：新主题以圆形从点击处扩散（圆形由 JS 控制） */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* 不支持 View Transitions 时的降级：全局颜色渐变 */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition:
+    background-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.38s cubic-bezier(0.4, 0, 0.2, 1),
+    fill 0.38s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 隐藏滚动条但保留滚动能力（大屏不需要可见滚动条） */
+.main-window {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* 旧 Edge / IE */
+}
+
+.main-window::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;              /* Chrome / Edge / Safari */
+}
+
+/* 全局：可滚动区域统一隐藏滚动条样式，保留滚动 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+.no-data-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  margin: 20px 0;
+}
+
+.empty-subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 8px;
+}
+
+.empty-subject-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.8;
+}
+
+.empty-subject-card:hover {
+  transform: scale(1.02);
+  opacity: 1;
+}
+
+.empty-subjects {
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  padding-top: 1rem;
+}
+
+.empty-subject-card:not(:disabled):hover {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.attendance-area {
+  padding: 8px 4px;
+  overflow: hidden;
+}
+
+.attendance-area h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.attendance-area h2 {
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 4px;
+  white-space: nowrap;
+}
+
+.attendance-area h3 {
+  font-size: 0.9rem;
+  font-weight: 400;
+  margin: 0 0 2px;
+  padding-left: 8px;
+}
+
+.gray-text {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.v-card.cursor-not-allowed:hover {
+  transform: none !important;
+}
+
+.text-success {
+  color: rgb(var(--v-theme-success));
+}
+
+.text-error {
+  color: rgb(var(--v-theme-error));
+}
+
+.text-warning {
+  color: rgb(var(--v-theme-warning));
+}

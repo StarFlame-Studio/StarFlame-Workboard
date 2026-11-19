@@ -1,0 +1,198 @@
+/* ============================================================
+   星焰作业板 · 微光骨架屏（shimmer skeleton）
+   亮色为暖中性底色 + 品牌暖色扫光，整体低对比、克制、无闪烁；
+   暗色由 .v-theme--dark 覆盖同一组变量，组件里不写死颜色。
+   依赖 styles/tokens.css 的圆角 / 卡片 / 阴影令牌。
+   ============================================================ */
+
+:root {
+  /* 骨架底色（暖中性，介于页面底色与线条色之间） */
+  --skel-base: #f1ece6;
+  --skel-base-2: #ece4db;
+  /* 扫光高光：品牌暖橙的低透明度叠加，不用纯白，避免刺眼 */
+  --skel-sheen: rgba(255, 209, 160, 0.55);
+  /* 骨架默认圆角：与最小卡片圆角对齐 */
+  --skel-radius: var(--r-xs);
+  /* 扫光周期（1.4s ~ 1.8s，缓慢不闪烁） */
+  --skel-dur: 1.6s;
+  /* 骨架「表面」：用来模拟真实卡片外壳 */
+  --skel-surface: var(--bg-card);
+  --skel-surface-border: var(--border);
+  --skel-surface-shadow: var(--shadow-sm);
+}
+
+.v-theme--dark {
+  --skel-base: #2a2320;
+  --skel-base-2: #332b26;
+  --skel-sheen: rgba(255, 172, 104, 0.14);
+  --skel-surface: var(--bg-card);
+  --skel-surface-border: var(--border);
+  --skel-surface-shadow: var(--shadow-sm);
+}
+
+/* ------------------------------ 基础块 ------------------------------ */
+
+.sf-skel {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--skel-radius);
+  background: var(--skel-base);
+  /* 更细的暖色渐变，让静态底色也有层次，不显得是一块死灰 */
+  background-image: linear-gradient(90deg, var(--skel-base) 0%, var(--skel-base-2) 55%, var(--skel-base) 100%);
+  isolation: isolate;
+}
+
+/* 扫光层：从左上到右下缓慢扫过 */
+.sf-skel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent 0%, var(--skel-sheen) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: sf-skel-sweep var(--skel-dur) ease-in-out infinite;
+  pointer-events: none;
+  will-change: transform;
+}
+
+@keyframes sf-skel-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+/* 无障碍：跟随系统「减少动效」时只保留静态底色，不做扫光 */
+@media (prefers-reduced-motion: reduce) {
+  .sf-skel,
+  .sf-skel::after {
+    animation: none !important;
+  }
+
+  .sf-skel::after {
+    display: none;
+  }
+}
+
+/* ------------------------------ 形状变体 ------------------------------ */
+
+.sf-skel--circle {
+  border-radius: 50%;
+}
+
+.sf-skel--text {
+  height: 0.8em;
+  border-radius: 6px;
+}
+
+.sf-skel--card {
+  border-radius: var(--r-lg);
+}
+
+.sf-skel--pill {
+  border-radius: var(--r-pill);
+}
+
+/* ------------------------------ 布局工具类 ------------------------------ */
+
+.sf-skel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--skel-stack-gap, 10px);
+}
+
+.sf-skel-row {
+  display: flex;
+  align-items: center;
+  gap: var(--skel-row-gap, 12px);
+}
+
+/* ------------------------------ 组合骨架的公共外壳 ------------------------------ */
+
+/* 模拟真实卡片的容器：圆角 / 描边 / 阴影全部走令牌，与 .v-card 一致 */
+.sf-skel-surface {
+  background: var(--skel-surface);
+  border: 1px solid var(--skel-surface-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--skel-surface-shadow);
+  padding: 18px;
+}
+
+/* 表格骨架 */
+.sf-skel-table {
+  padding: 6px 4px 2px;
+}
+
+.sf-skel-table__head,
+.sf-skel-table__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sf-skel-table__head {
+  padding: 8px 12px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sf-skel-table__row {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sf-skel-table__row:last-child {
+  border-bottom: none;
+}
+
+.sf-skel-table__cell {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sf-skel-table__lead {
+  flex: 1.5 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 表单类骨架：左侧标签条 + 右侧输入块 */
+.sf-skel-field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 0;
+}
+
+.sf-skel-field__label {
+  flex: 0 0 38%;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sf-skel-field__control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 卡片网格骨架里的卡片 */
+.sf-skel-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.sf-skel-tile__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

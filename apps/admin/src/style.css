@@ -1,0 +1,10 @@
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/skeleton.css';
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}

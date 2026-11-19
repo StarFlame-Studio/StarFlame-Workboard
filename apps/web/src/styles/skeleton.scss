@@ -1,0 +1,96 @@
+/* ============================================================
+   微光骨架屏（shimmer skeleton）
+   —— 双端共用的加载态视觉：暖中性底色 + 一道极淡的品牌橙微光扫过。
+   仅负责「形」与「光」，具体尺寸由组件内联 style 控制。
+   ============================================================ */
+
+:root {
+  --skel-base: #ece5dd;
+  --skel-base-2: #f6efe8;
+  --skel-sheen: rgba(255, 138, 31, 0.22);
+  --skel-radius: 12px;
+  --skel-duration: 1.6s;
+}
+
+/* 暗色主题（看板、桌面端默认深色） */
+.v-theme--dark {
+  --skel-base: #241f1b;
+  --skel-base-2: #302823;
+  --skel-sheen: rgba(255, 165, 58, 0.17);
+}
+
+.sf-skel {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--skel-radius);
+  background: linear-gradient(100deg, var(--skel-base) 0%, var(--skel-base-2) 52%, var(--skel-base) 100%);
+  /* 自绘元素不该抢焦点，也不该被选中 */
+  pointer-events: none;
+  user-select: none;
+}
+
+/* 微光：一条斜向的高光带缓慢扫过 */
+.sf-skel::after {
+  content: '';
+  position: absolute;
+  inset: -30% -60%;
+  background: linear-gradient(
+    100deg,
+    transparent 34%,
+    var(--skel-sheen) 48%,
+    rgba(255, 255, 255, 0.42) 52%,
+    var(--skel-sheen) 56%,
+    transparent 70%
+  );
+  transform: translateX(-58%);
+  animation: sf-skel-sweep var(--skel-duration) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes sf-skel-sweep {
+  0% {
+    transform: translateX(-58%);
+  }
+  100% {
+    transform: translateX(58%);
+  }
+}
+
+/* 形状修饰 */
+.sf-skel--circle {
+  border-radius: 50%;
+}
+
+.sf-skel--pill {
+  border-radius: 999px;
+}
+
+.sf-skel--text {
+  border-radius: 6px;
+  height: 0.85em;
+}
+
+.sf-skel--card {
+  border-radius: var(--r-lg, 16px);
+}
+
+/* 布局工具 */
+.sf-skel-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.sf-skel-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* 无障碍：用户要求减少动态效果时，去掉扫光只留静态底色 */
+@media (prefers-reduced-motion: reduce) {
+  .sf-skel::after {
+    animation: none;
+    opacity: 0;
+  }
+}

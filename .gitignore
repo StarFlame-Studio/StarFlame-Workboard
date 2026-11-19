@@ -1,0 +1,31 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.vite/
+
+# ---- 桌面端构建产物 / 安装包（体积大，不入库，走 Release 附件）----
+apps/desktop/release/
+apps/desktop/renderer/
+apps/desktop/dist/
+release/
+
+# ---- 签名证书（含私钥，绝不能入库）----
+apps/desktop/build/certs/
+*.pfx
+*.p12
+
+# ---- 内部资料 / 日志 / 工具目录 ----
+.release-logs/
+.ops/
+.ref/
+UTDIR/
+*.zip
+
+# ---- 其它 ----
+*.tsbuildinfo
+.eslintcache

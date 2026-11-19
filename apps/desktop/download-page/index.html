@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>星焰作业板 · Windows 桌面端下载</title>
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="description" content="星焰作业板 Windows 桌面端下载：Win10/11 64 位、Win10/11 32 位、Win7/8 通用版。" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #100f0b;
+        --card: #211c18;
+        --line: #332b25;
+        --text: #f7e9dc;
+        --muted: #a9968a;
+        --accent: #ff8a3d;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(1000px 520px at 18% -10%, rgba(255, 138, 61, 0.16), transparent 62%),
+          var(--bg);
+        color: var(--text);
+        font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 20px 64px;
+      }
+      header { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+      header img { width: 54px; height: 54px; border-radius: 15px; }
+      h1 { font-size: 26px; margin: 0; letter-spacing: 0.5px; }
+      .sub { color: var(--muted); font-size: 14px; margin: 10px 0 34px; text-align: center; line-height: 1.7; }
+      .grid {
+        width: 100%;
+        max-width: 940px;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px 22px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .card.recommend { border-color: rgba(255, 138, 61, 0.55); box-shadow: 0 0 0 1px rgba(255, 138, 61, 0.18) inset; }
+      .card h2 { font-size: 17px; margin: 0; display: flex; align-items: center; gap: 8px; }
+      .tag {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255, 138, 61, 0.16);
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+      .card .meta { font-size: 12px; color: var(--muted); }
+      .btn {
+        margin-top: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 42px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #ffa53a, #f4511e);
+        color: #221208;
+        font-weight: 600;
+        font-size: 14px;
+        text-decoration: none;
+        border: 0;
+      }
+      .btn.secondary {
+        background: transparent;
+        color: var(--text);
+        border: 1px solid var(--line);
+        font-weight: 500;
+        height: 36px;
+        font-size: 13px;
+      }
+      .btn:hover { filter: brightness(1.06); }
+      .smart {
+        width: 100%;
+        max-width: 940px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 16px 20px;
+        border-radius: 14px;
+        border: 1px dashed rgba(255, 138, 61, 0.45);
+        background: rgba(255, 138, 61, 0.07);
+      }
+      .smart .txt { flex: 1 1 320px; }
+      .smart b { display: block; font-size: 15px; margin-bottom: 4px; }
+      .smart span { color: var(--muted); font-size: 13px; line-height: 1.6; }
+      .smart .btn { margin-top: 0; flex: 0 0 auto; padding: 0 22px; }
+      .tips {
+        max-width: 940px;
+        width: 100%;
+        margin-top: 26px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.9;
+      }
+      .tips b { color: var(--text); font-weight: 600; }
+      .tips code { background: rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+      .fix {
+        max-width: 940px;
+        width: 100%;
+        margin-top: 18px;
+        padding: 16px 20px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 138, 61, 0.05);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.8;
+      }
+      .fix b { display: block; color: var(--text); font-size: 14px; margin-bottom: 6px; }
+      .fix code { background: rgba(255, 255, 255, 0.06); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+      .fix-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+      .fix-links .btn.secondary { width: auto; padding: 0 18px; }
+      footer { margin-top: 30px; color: #6f6157; font-size: 12px; text-align: center; line-height: 1.8; }
+      footer a { color: #8c7c70; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="/logo.svg" alt="星焰作业板" />
+      <h1>星焰作业板 · Windows 桌面端</h1>
+    </header>
+    <p class="sub">
+      与网页端同一套界面与功能，开机即用，支持自动更新。<br />
+      不确定该下哪个？直接选第一个「Win10/11 64 位版」，大多数电脑都适用。
+    </p>
+
+    <div class="smart">
+      <div class="txt">
+        <b>不知道选哪个？用这个</b>
+        <span>一键安装引导会自己判断系统版本与位数，自动下载并启动正确的安装包。约 76 KB，需要联网。</span>
+      </div>
+      <a class="btn" href="./StarflameWorkboard-Setup-1.1.5.exe">一键安装（推荐新手）</a>
+    </div>
+
+    <div class="grid">
+      <div class="card recommend" id="card-win10-x64">
+        <h2>Win10 / 11 · 64 位 <span class="tag">推荐</span></h2>
+        <p>适用于绝大多数教室一体机与办公电脑（Windows 10 / 11，64 位）。</p>
+        <div class="meta">安装包约 86 MB · 版本 1.1.5</div>
+        <a class="btn" href="./win10-x64/StarflameWorkboard-1.1.5-x64.exe">下载安装包</a>
+        <a class="btn secondary" href="./win10-x64/StarflameWorkboard-1.1.5-x64.zip">下载便携版（免安装）</a>
+      </div>
+
+      <div class="card" id="card-win10-ia32">
+        <h2>Win10 / 11 · 32 位</h2>
+        <p>适用于 32 位的 Win10 / Win11 老一体机（系统属性里显示「32 位操作系统」）。</p>
+        <div class="meta">安装包约 81 MB · 版本 1.1.5</div>
+        <a class="btn" href="./win10-ia32/StarflameWorkboard-1.1.5-ia32.exe">下载安装包</a>
+        <a class="btn secondary" href="./win10-ia32/StarflameWorkboard-1.1.5-ia32.zip">下载便携版（免安装）</a>
+      </div>
+
+      <div class="card" id="card-win7">
+        <h2>Win7 / 8 / 8.1 通用版</h2>
+        <p>适用于 Windows 7 SP1 及以上的老系统，32 位与 64 位系统都能安装。</p>
+        <div class="meta">安装包约 70 MB · 版本 1.1.5</div>
+        <a class="btn" href="./win7-ia32/StarflameWorkboard-1.1.5-ia32.exe">下载安装包</a>
+        <a class="btn secondary" href="./win7-ia32/StarflameWorkboard-1.1.5-ia32.zip">下载便携版（免安装）</a>
+      </div>
+    </div>
+
+    <div class="tips">
+      <b>安装说明</b><br />
+      1. 双击安装包，选择安装位置（默认装在当前用户目录，无需管理员权限）；<br />
+      2. 首次启动后扫码或在设置页填写班级码与授权码完成绑定；<br />
+      3. 之后的版本更新会在应用内提示，下载完成后退出应用即自动安装。<br /><br />
+      <b>便携版</b>解压到任意文件夹，双击 <code>StarflameWorkboard.exe</code> 即可运行，不写入注册表。<br />
+      安装包已用「焰火工作室」代码签名证书签名；若这台电脑还没信任该证书，Windows 可能提示「已保护你的电脑」，点「更多信息 → 仍要运行」即可。
+    </div>
+
+    <div class="fix">
+      <b>应用内更新失败，提示「不是由应用所有者签名」？</b>
+      <span>
+        现象：检测到 1.1.5，下载完成后报「not signed by the application owner / 不是由应用所有者签名」。
+        原因是这台电脑还没把「焰火工作室」的代码签名证书加入受信任根。<br />
+        下载下面的 <code>install-cert.bat</code> 与 <code>starflame.cer</code>，放在同一个文件夹里，双击 bat 运行即可
+        （<b>无需管理员权限</b>，只写入当前用户；若以管理员运行则对全机生效）。脚本会自动清理失败的更新缓存，
+        然后回到「星焰作业板 → 设置 → 关于」点「检查更新」，这次会正常下载并自动安装。<br />
+        脚本失败时手动导入：右键 <code>starflame.cer</code> → 安装证书 → 当前用户 →
+        「将所有的证书都放入下列存储」→ 浏览 → 受信任的根证书颁发机构。<br />
+        也可以直接用上面的 1.1.5 安装包覆盖安装，已绑定的班级与本地缓存都不会丢。
+      </span>
+      <div class="fix-links">
+        <a class="btn secondary" href="./install-cert.bat">下载证书一键导入（.bat）</a>
+        <a class="btn secondary" href="./starflame.cer">下载证书文件（.cer）</a>
+      </div>
+    </div>
+
+    <footer>
+      焰火工作室 · 星焰作业板 1.1.5<br />
+      <a href="/">返回网页版</a>
+    </footer>
+
+    <script>
+      // 32 位系统上把「Win10/11 32 位」卡片高亮，避免用户下错架构
+      (function () {
+        var ua = navigator.userAgent || ''
+        var is32 = /Windows/.test(ua) && !/Win64|WOW64|x64/i.test(ua)
+        var card = document.getElementById(is32 ? 'card-win10-ia32' : 'card-win10-x64')
+        if (!card) return
+        // 静态 HTML 里 x64 卡片默认就带推荐标记，先统一清掉再给目标卡片打标，避免出现两个「推荐」
+        document.querySelectorAll('.card.recommend').forEach(function (el) {
+          el.classList.remove('recommend')
+        })
+        document.querySelectorAll('.card .tag').forEach(function (el) {
+          el.remove()
+        })
+        card.classList.add('recommend')
+        var tag = document.createElement('span')
+        tag.className = 'tag'
+        tag.textContent = '推荐'
+        var h2 = card.querySelector('h2')
+        if (h2) h2.appendChild(tag)
+      })()
+    </script>
+  </body>
+</html>

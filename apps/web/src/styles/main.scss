@@ -1,0 +1,113 @@
+// 全局入口：按原项目顺序引入
+@use './index';
+@use './tokens';
+@use './base';
+@use './skeleton';
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.serif-font {
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+}
+
+/* ===== 可点区域下限（桌面端） ===== */
+.v-btn--size-small:not(.v-btn--icon) {
+  min-height: 32px;
+}
+
+.v-chip .v-chip__close {
+  min-width: 22px;
+  min-height: 22px;
+  font-size: 18px;
+}
+
+/* ===== 移动端触控目标（<=600px） ===== */
+@media (max-width: 600px) {
+  .v-btn--size-default:not(.v-btn--icon),
+  .v-btn--size-small:not(.v-btn--icon) {
+    min-height: 38px;
+  }
+
+  .v-btn--icon {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .v-chip .v-chip__close {
+    min-width: 24px;
+    min-height: 24px;
+    font-size: 18px;
+  }
+}
+
+/* ===== 桌面端整体放大 15% =====
+ * 由 src/lib/uiScale.ts 在「未缩放宽度 ≥960px」时给 <html> 加 .ui-scale-desktop，
+ * 用 zoom 缩放整棵渲染树（字号、间距、卡片、图标、圆角等比放大）；
+ * 窄屏维持原尺寸，避免手机上出现过大的元素。
+ */
+html.ui-scale-desktop {
+  zoom: 1.15;
+}
+
+/* ===== 页面壳高度约束 =====
+ * body 是 overflow:hidden，而 Vuetify 的 .v-application__wrap 只有 min-height:100vh。
+ * 桌面端有 zoom:1.15 时 100vh 仍按未缩放视口计算（873px > 实际布局高 759px），
+ * 于是内容一多整块撑出视口，底部被裁（看板安装卡按钮、列表页卡片、模板页底部都中招）。
+ * 这里统一锁成一屏高（用 100% 而不是 vh，避开 zoom 下的 vh 偏差），由内容区自己滚动。
+ */
+.v-application,
+.v-application__wrap {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.v-application__wrap {
+  overflow: hidden;
+}
+
+/* 注意：Vuetify 的 VMain 组件样式是单独懒加载的 CSS，同权重会比较晚生效，
+ * 所以这里既要提权（.v-application .v-main）也要 !important，否则 overflow-y 会被改回 visible，
+ * 页面底部继续被 body 的 overflow:hidden 裁掉。 */
+.v-application .v-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* 给左下角版本徽标、右下角备案号留出安全区，滚到底也不会被压住 */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+}
+
+/* 没有 v-main 的页面（模板设置 / 考试看板等）用这个类自己滚动 */
+.sf-page-scroll {
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 600px) {
+  .v-main,
+  .sf-page-scroll {
+    /* 移动端底部还有浮动工具条 + 版本徽标，留更多 */
+    padding-bottom: calc(128px + env(safe-area-inset-bottom));
+  }
+}

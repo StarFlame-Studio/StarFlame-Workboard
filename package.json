@@ -1,0 +1,26 @@
+{
+  "name": "starflame-workboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:shared": "pnpm --filter @starflame/shared build",
+    "dev:server": "pnpm --filter @starflame/shared build && pnpm --filter @starflame/server dev",
+    "dev:web": "pnpm --filter @starflame/shared build && pnpm --filter @starflame/web dev",
+    "dev:admin": "pnpm --filter @starflame/shared build && pnpm --filter @starflame/admin dev",
+    "build": "pnpm --filter @starflame/shared build && pnpm -r --if-present build",
+    "typecheck": "pnpm --filter @starflame/shared build && pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @starflame/server db:generate",
+    "db:migrate": "pnpm --filter @starflame/server db:migrate",
+    "db:seed": "pnpm --filter @starflame/server db:seed"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

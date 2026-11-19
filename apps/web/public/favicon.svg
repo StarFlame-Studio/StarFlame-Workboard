@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="星焰作业板">
+  <defs>
+    <linearGradient id="sfg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFA53A"/>
+      <stop offset="1" stop-color="#F4511E"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#1A1310"/>
+  <g>
+    <path fill="url(#sfg)" d="M18 14c.8 5.8 2.8 7.8 8.6 8.6-5.8.8-7.8 2.8-8.6 8.6-.8-5.8-2.8-7.8-8.6-8.6 5.8-.8 7.8-2.8 8.6-8.6z"/>
+    <rect x="29" y="20" width="25" height="6" rx="3" fill="url(#sfg)"/>
+    <rect x="17" y="34" width="37" height="6" rx="3" fill="#F7E9DC" opacity=".58"/>
+    <rect x="17" y="44" width="21" height="6" rx="3" fill="#F7E9DC" opacity=".3"/>
+    <g transform="translate(50.5 47.5) rotate(45)">
+      <rect x="-3" y="-12.5" width="6" height="16.5" rx="2" fill="#F7E9DC" opacity=".95"/>
+      <path d="M-3 4 L0 12 L3 4 Z" fill="url(#sfg)"/>
+    </g>
+  </g>
+</svg>

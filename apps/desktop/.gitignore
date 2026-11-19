@@ -1,0 +1,5 @@
+# 构建产物：renderer 由 apps/web 构建而来，release 是打包输出
+renderer/
+release/
+dist/
+build/bootstrap-out.exe

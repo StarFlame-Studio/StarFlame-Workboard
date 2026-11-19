@@ -1,0 +1,28 @@
+{
+  "name": "@starflame/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --port 3032",
+    "build": "vite build && node scripts/postbuild-mpa.mjs",
+    "preview": "vite preview --port 3032"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "@starflame/shared": "workspace:*",
+    "axios": "^1.7.9",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.45",
+    "vue-router": "^4.6.4",
+    "vuetify": "^3.13.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.11",
+    "sass": "^1.83.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8",
+    "vite-plugin-vuetify": "^2.1.3",
+    "vue-tsc": "^2.2.0"
+  }
+}
