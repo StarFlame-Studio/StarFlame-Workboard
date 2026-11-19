@@ -2,7 +2,7 @@
 
 面向中小学课堂的作业看板系统：教室一体机 / 老师设备 / 学生设备通过「班级码 + 授权码」接入，实时同步作业、考试、模板与课程时间段。
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](./LICENSE)
 ![Version](https://img.shields.io/badge/version-1.1.5-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green)
 
@@ -11,7 +11,7 @@
 - 官网：<https://zy.yanhuoyiyou.cn> ｜ 后台管理：<https://zyadmin.yanhuoyiyou.cn>
 - 桌面端下载：<https://zy.yanhuoyiyou.cn/desktop/>
 
-> 本项目以 MIT 协议开源，欢迎 Issue / PR。
+> 本项目以 GNU AGPL-3.0 协议开源，欢迎 Issue / PR。
 
 ## 功能概览
 
@@ -95,4 +95,14 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 
 ## 许可证
 
-本项目基于 [MIT License](./LICENSE) 开源，Copyright © 2026 焰火工作室（StarFlame Studio）。
+本项目基于 [GNU Affero General Public License v3.0](./LICENSE)（AGPL-3.0）开源，
+Copyright © 2026 焰火工作室（StarFlame Studio）。
+
+AGPL-3.0 是强著佐权（strong copyleft）协议，要点：
+
+- 你可以自由使用、修改、分发本软件，包括商业使用。
+- 分发本软件或其衍生作品时，必须以同一协议开源，并提供完整对应源码。
+- **通过网络向用户提供服务（SaaS / 云部署）也视同分发**：必须向这些用户提供获取源码的途径。
+- 本软件按「现状」提供，不附带任何担保。
+
+如需在闭源商业场景中使用，请联系维护者获取商业授权。
