@@ -1,6 +1,6 @@
 <template>
   <settings-group
-    description="生成包含预配置认证信息和设置的统一链接。可以同时预配置设备认证和应用设置。"
+    description="生成预配链接：设备打开链接后自动登录并进入作业看板，无需再输入任何内容。可同时预配置设备认证信息与班级设置。"
     icon="mdi-link-variant"
     title="统一链接生成器"
   >
@@ -15,12 +15,24 @@
           <v-text-field v-model="form.classCode" density="compact" hint="设备登录用的班级码" label="班级码" persistent-hint variant="outlined" />
         </v-col>
         <v-col cols="12" sm="6">
-          <v-text-field v-model="form.accessCode" density="compact" hint="留空则需要用户手动输入" label="授权码" persistent-hint variant="outlined" />
+          <v-text-field v-model="form.accessCode" density="compact" hint="留空 = 游客只读登录" label="授权码（可留空）" persistent-hint variant="outlined" />
+        </v-col>
+        <v-col cols="12">
+          <v-text-field
+            v-model="form.deviceName"
+            density="compact"
+            hint="留空则由授权码身份自动命名（一体机 / 老师 / 学生 / 家长 / 游客）"
+            label="设备名称（可选）"
+            persistent-hint
+            variant="outlined"
+          />
         </v-col>
       </v-row>
 
-      <v-checkbox v-model="form.autoAuth" density="compact" hide-details label="自动执行认证" />
-      <div class="text-caption text-medium-emphasis mb-2">启用后会自动尝试认证，即使没有认证码也会尝试</div>
+      <v-checkbox v-model="form.autoAuth" density="compact" hide-details label="打开链接即自动登录" />
+      <div class="text-caption text-medium-emphasis mb-2">
+        开启后设备打开链接会直接登录并进入作业看板；不带授权码时以游客身份只读进入（需班级已开启游客登录）。
+      </div>
     </v-card>
 
     <v-card class="ma-2 pa-4" variant="tonal">
@@ -111,7 +123,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { getData } from '@/lib/api'
 import SettingsGroup from '@/components/settings/SettingGroup.vue'
 
-const form = reactive({ classCode: '', accessCode: '', autoAuth: false })
+const form = reactive({ classCode: '', accessCode: '', deviceName: '', autoAuth: true })
 const selectedKeys = ref<string[]>([])
 const link = ref('')
 const settings = ref<Record<string, unknown>>({})
@@ -158,6 +170,8 @@ function generate(): void {
   const params = new URLSearchParams()
   if (form.classCode.trim()) params.set('classCode', form.classCode.trim())
   if (form.accessCode.trim()) params.set('accessCode', form.accessCode.trim())
+  if (form.deviceName.trim()) params.set('deviceName', form.deviceName.trim())
+  // 默认带上 autoAuth=1：设备打开链接即自动登录进看板
   if (form.autoAuth) params.set('autoAuth', '1')
   if (selectedKeys.value.length > 0) {
     const snapshot: Record<string, unknown> = {}
@@ -167,7 +181,7 @@ function generate(): void {
     params.set('settings', encodeURIComponent(JSON.stringify(snapshot)))
   }
   link.value = window.location.origin + '/bind?' + params.toString()
-  snack.text = '已生成统一链接'
+  snack.text = form.autoAuth ? '已生成预配链接（打开即自动登录）' : '已生成统一链接'
   snack.color = 'success'
   snack.show = true
 }
@@ -181,7 +195,8 @@ function clearLink(): void {
   link.value = ''
   form.classCode = ''
   form.accessCode = ''
-  form.autoAuth = false
+  form.deviceName = ''
+  form.autoAuth = true
   selectedKeys.value = []
 }
 

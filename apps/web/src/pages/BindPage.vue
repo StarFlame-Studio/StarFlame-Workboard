@@ -46,6 +46,9 @@
           <v-chip v-if="!accessCode.trim()" class="mt-3" color="warning" prepend-icon="mdi-account-outline" size="small" variant="tonal">
             游客登录：只能看，不能改
           </v-chip>
+          <v-chip v-if="autoLoginLink" class="mt-3 ml-2" color="primary" prepend-icon="mdi-link-variant" size="small" variant="tonal">
+            预配链接：正在自动登录
+          </v-chip>
           <v-alert v-if="error" class="mb-4" density="compact" type="error" variant="tonal">
             {{ error }}
           </v-alert>
@@ -70,9 +73,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import logoUrl from '@/assets/logo.svg'
 import { navigate } from '@/lib/nav'
+import { applyProvisionSettings } from '@/lib/provisionApply'
+import { parseProvisionLink, type ProvisionLink } from '@/lib/provisionLink'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -83,6 +88,10 @@ const accessCode = ref('')
 const deviceName = ref('')
 const loading = ref(false)
 const error = ref('')
+/** 预配链接要求自动登录时显示提示条 */
+const autoLoginLink = ref(false)
+/** 预配链接携带的班级设置快照，登录成功后写回云端 */
+const pendingSettings = ref<Record<string, unknown> | null>(null)
 
 const UUID_KEY = 'sf.deviceUuid'
 /** 记住上次的设备名称，下次打开自动填好（可随时改） */
@@ -120,14 +129,38 @@ onMounted(() => {
   ensureUuid()
   const remembered = localStorage.getItem(NAME_KEY)
   if (remembered && !deviceName.value) deviceName.value = remembered
+
+  // 预配链接：班级码 / 授权码 / 设备名称直接填好；带 autoAuth 时无需用户操作，直接登录进看板
+  const link = parseProvisionLink(window.location.search)
+  if (!link.isProvision) return
+  classCode.value = link.classCode
+  accessCode.value = link.accessCode
+  if (link.deviceName) deviceName.value = link.deviceName
+  if (Object.keys(link.settings).length > 0) pendingSettings.value = link.settings
+  if (!link.autoLogin) return
+  autoLoginLink.value = true
+  void autoLogin(link)
 })
+
+/** 预配链接自动登录：先让表单渲染出来，再走正常登录流程 */
+async function autoLogin(link: ProvisionLink): Promise<void> {
+  // 等一帧，避免用户看到空白或未填好的表单
+  await nextTick()
+  const ok = await submit()
+  if (ok) return
+  // 自动登录失败（例如班级未开启游客登录 / 授权码过期）时退回手动模式，把原因留在页面上
+  autoLoginLink.value = false
+  if (!link.accessCode) {
+    error.value = error.value || '预配链接未带授权码，且该班级未开启游客登录，请向老师索取授权码后手动登录'
+  }
+}
 
 function goWelcome(): void {
   window.location.href = '/welcome'
 }
 
-async function submit(): Promise<void> {
-  if (loading.value) return
+async function submit(): Promise<boolean> {
+  if (loading.value) return false
   // 保留原样大小写：班级码与授权码区分由服务端比较规则决定
   const classCodeValue = classCode.value.trim()
   const accessCodeValue = accessCode.value.trim()
@@ -145,9 +178,21 @@ async function submit(): Promise<void> {
         /* 隐私模式下忽略 */
       }
     }
+    // 预配链接带了设置快照：趁 token 已就绪写回云端；只读设备会被服务端拒绝，忽略即可
+    const snapshot = pendingSettings.value
+    if (snapshot && Object.keys(snapshot).length > 0) {
+      pendingSettings.value = null
+      try {
+        await applyProvisionSettings(snapshot)
+      } catch {
+        /* 游客 / 家长 / 学生等只读设备不允许改班级设置，静默跳过 */
+      }
+    }
     navigate('board')
+    return true
   } catch (e) {
     error.value = e instanceof Error ? e.message : '登录失败，请检查班级码与授权码'
+    return false
   } finally {
     loading.value = false
   }

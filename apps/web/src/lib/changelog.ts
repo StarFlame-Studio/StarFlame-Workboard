@@ -23,7 +23,21 @@ export interface ChangelogEntry {
  * 尚未发布的版本条目：真正打包发布时，把条目从这里移到 CHANGELOG 顶部。
  * 目的：网页端不要在桌面端安装包上传完成前就提前展示新版本号与更新内容。
  */
-export const PENDING_CHANGELOG: ChangelogEntry[] = []
+export const PENDING_CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.1.6',
+    date: '2026-11-20',
+    summary: '预配链接支持打开即自动登录并直达作业看板；未带授权码时以游客身份只读进入',
+    desktop: true,
+    items: [
+      '打开预配链接后自动完成设备登录并进入作业看板，无需再手动输入班级码与授权码',
+      '预配链接未填授权码时自动以游客身份只读进入（需班级已开启游客登录）',
+      '预配链接可携带设备名称，生成的链接默认开启自动登录',
+      '预配链接里的班级设置快照会在登录成功且设备有写权限时自动写回班级设置',
+      '自动登录失败时退回手动登录并显示具体原因',
+    ],
+  },
+]
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
