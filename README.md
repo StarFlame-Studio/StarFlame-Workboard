@@ -2,9 +2,16 @@
 
 面向中小学课堂的作业看板系统：教室一体机 / 老师设备 / 学生设备通过「班级码 + 授权码」接入，实时同步作业、考试、模板与课程时间段。
 
-- 线上站点：<https://zy.yanhuoyiyou.cn>（作业看板）、<https://zyadmin.yanhuoyiyou.cn>（后台管理面板）
-- 下载页：<https://zy.yanhuoyiyou.cn/desktop/>
-- 当前版本：**v1.1.5**
+[![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
+![Version](https://img.shields.io/badge/version-1.1.5-blue)
+![Node](https://img.shields.io/badge/node-%3E%3D20-green)
+
+- GitHub：<https://github.com/StarFlame-Studio/starflame-workboard>
+- Gitee：<https://gitee.com/starflame-studio/starflame-workboard>
+- 官网：<https://zy.yanhuoyiyou.cn> ｜ 后台管理：<https://zyadmin.yanhuoyiyou.cn>
+- 桌面端下载：<https://zy.yanhuoyiyou.cn/desktop/>
+
+> 本项目以 MIT 协议开源，欢迎 Issue / PR。
 
 ## 功能概览
 
@@ -44,7 +51,7 @@ packages/
 ```bash
 pnpm install
 
-# 复制并填写服务端环境变量
+# 复制并填写服务端环境变量（数据库、JWT 密钥、七牛等）
 cp apps/server/.env.example apps/server/.env
 
 pnpm build:shared      # 先构建共享包
@@ -53,7 +60,7 @@ pnpm dev:web           # 作业看板，默认 3031
 pnpm dev:admin         # 后台管理，默认 3032
 ```
 
-数据库使用 MySQL，`pnpm db:generate` / `pnpm db:migrate` / `pnpm db:seed` 分别用于生成迁移、执行迁移与写入初始数据。
+数据库使用 MySQL，`pnpm db:generate` / `pnpm db:migrate` / `pnpm db:seed` 分别用于生成迁移、执行迁移与写入初始数据（初始管理员密码由 `SEED_PASSWORD` 环境变量决定）。
 
 ## 构建与发布
 
@@ -66,12 +73,26 @@ node scripts/pack.mjs win10-x64              # 也可 all
 node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 ```
 
-桌面端安装包产物在 `apps/desktop/release/<channel>/`，安装器界面与默认安装路径逻辑见 `apps/desktop/build/starflame-installer.nsh`：默认装到所选磁盘的 `StarFlame\StarFlameWorkboard` 目录（C 盘落在当前用户 `%LOCALAPPDATA%` 下，全程不请求管理员权限），并在选盘页提示「若一体机开启了冰点还原，推荐安装在 C 盘以外的磁盘」。
+桌面端安装包产物在 `apps/desktop/release/<channel>/`。安装器界面与默认安装路径逻辑见 `apps/desktop/build/starflame-installer.nsh`：默认装到所选磁盘的 `StarFlame\StarFlameWorkboard` 目录（C 盘落在当前用户 `%LOCALAPPDATA%` 下，全程不请求管理员权限），并在选盘页提示「若一体机开启了冰点还原，推荐安装在 C 盘以外的磁盘」。
 
 ## 版本号
 
 版本号单点维护在 `packages/shared/src/constants.ts` 的 `APP_VERSION` / `APP_VERSION_CODE`，同时需同步 `apps/desktop/package.json` 与 `apps/web/src/lib/changelog.ts` 的更新日志。
 
-## 说明
+## 下载
 
-本仓库为私有项目，包含业务代码与部署配置。安装包不进入版本库，统一发布在各平台的 Release / 发行版附件，或从官网下载页获取。
+安装包不进入版本库，统一发布在各平台的发行版附件：
+
+- GitHub Releases：<https://github.com/StarFlame-Studio/starflame-workboard/releases>
+- Gitee 发行版：<https://gitee.com/starflame-studio/starflame-workboard/releases>
+- 官网下载页：<https://zy.yanhuoyiyou.cn/desktop/>
+
+## 安全说明
+
+- 仓库不包含任何生产环境密钥：数据库连接串、JWT 密钥、七牛密钥、签名证书密码一律通过环境变量注入，见 `apps/server/.env.example`。
+- 签名证书（`*.pfx`）、安装包、构建产物、内部日志均已加入 `.gitignore`。
+- 发现安全问题请通过 Issue 私密反馈或邮件联系维护者，不要公开提交漏洞细节。
+
+## 许可证
+
+本项目基于 [MIT License](./LICENSE) 开源，Copyright © 2026 焰火工作室（StarFlame Studio）。
