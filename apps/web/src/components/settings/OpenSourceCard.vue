@@ -1,28 +1,65 @@
 <template>
-  <settings-card icon="mdi-open-source-initiative" subtitle="本项目为开源项目，源代码及相关文件即将上传至 GitHub。" title="开源说明">
+  <settings-card icon="mdi-open-source-initiative" subtitle="本项目以 GNU AGPL-3.0 协议开源" title="开源说明">
     <div class="opensource-body">
       <div class="d-flex align-center" style="gap: 8px">
         <v-icon icon="mdi-github" size="22" />
-        <span class="font-weight-medium">源代码即将公开</span>
+        <span class="font-weight-medium">源代码已公开在 GitHub 与 Gitee</span>
       </div>
       <p class="opensource-text">
-        本项目为开源项目，源代码及相关文件即将上传至 GitHub。上传完成后，仓库地址会在这里公布，
-        欢迎自建部署、提交问题与改进建议。
+        星焰作业板是开源项目，采用 GNU AGPL-3.0 协议。欢迎自建部署、提交问题与改进建议；
+        如果你在网络上提供服务，按协议需要一并提供完整源代码。
       </p>
-      <div class="text-caption text-medium-emphasis">当前版本仍在持续迭代，功能与界面可能继续调整。</div>
+
+      <div class="opensource-actions">
+        <v-btn
+          append-icon="mdi-open-in-new"
+          :href="GITHUB_REPO_URL"
+          prepend-icon="mdi-github"
+          rel="noopener noreferrer"
+          target="_blank"
+          variant="tonal"
+        >
+          GitHub 仓库
+        </v-btn>
+        <v-btn
+          append-icon="mdi-open-in-new"
+          :href="GITEE_REPO_URL"
+          prepend-icon="mdi-source-repository"
+          rel="noopener noreferrer"
+          target="_blank"
+          variant="tonal"
+        >
+          Gitee 仓库
+        </v-btn>
+        <v-btn
+          append-icon="mdi-download"
+          :href="GITHUB_RELEASES_URL"
+          prepend-icon="mdi-package-variant-closed"
+          rel="noopener noreferrer"
+          target="_blank"
+          variant="text"
+        >
+          历史版本安装包
+        </v-btn>
+      </div>
+
+      <div class="text-caption text-medium-emphasis">
+        Gitee 仓库需登录后访问（仓库正在办理转公开）；安装包归档以 GitHub Releases 为准。
+      </div>
     </div>
   </settings-card>
 </template>
 
 <script setup lang="ts">
 import SettingsCard from '@/components/settings/SettingsCard.vue'
+import { GITHUB_RELEASES_URL, GITHUB_REPO_URL, GITEE_REPO_URL } from '@/lib/repoLinks'
 </script>
 
 <style scoped>
 .opensource-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .opensource-text {
@@ -30,5 +67,18 @@ import SettingsCard from '@/components/settings/SettingsCard.vue'
   font-size: 14px;
   line-height: 1.6;
   color: rgba(var(--v-theme-on-surface), 0.78);
+}
+
+.opensource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 2px 0 4px;
+}
+
+@media (max-width: 700px) {
+  .opensource-text {
+    font-size: 13px;
+  }
 }
 </style>
