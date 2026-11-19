@@ -6,7 +6,7 @@
 ![Version](https://img.shields.io/badge/version-1.1.5-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green)
 
-- GitHub：<https://github.com/StarFlame-Studio/starflame-workboard>
+- GitHub：<https://github.com/StarFlame-Studio/StarFlame-Workboard>
 - Gitee：<https://gitee.com/starflame-studio/starflame-workboard>
 - 官网：<https://zy.yanhuoyiyou.cn> ｜ 后台管理：<https://zyadmin.yanhuoyiyou.cn>
 - 桌面端下载：<https://zy.yanhuoyiyou.cn/desktop/>
@@ -102,7 +102,7 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 
 安装包不进入版本库，统一发布在各平台的发行版附件：
 
-- GitHub Releases：<https://github.com/StarFlame-Studio/starflame-workboard/releases>
+- GitHub Releases：<https://github.com/StarFlame-Studio/StarFlame-Workboard/releases>
 - Gitee 发行版：<https://gitee.com/starflame-studio/starflame-workboard/releases>
 - 官网下载页：<https://zy.yanhuoyiyou.cn/desktop/>
 
