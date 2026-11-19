@@ -23,6 +23,29 @@
             </td>
           </tr>
           <tr><td class="text-medium-emphasis label-cell">作者</td><td>焰火工作室</td></tr>
+          <tr>
+            <td class="text-medium-emphasis label-cell">开源仓库</td>
+            <td>
+              <a class="about-link" :href="GITHUB_REPO_URL" rel="noopener noreferrer" target="_blank">
+                <b>GitHub</b>
+                <v-icon icon="mdi-open-in-new" size="12" />
+              </a>
+              <span class="text-medium-emphasis mx-1">·</span>
+              <a class="about-link" :href="GITEE_REPO_URL" rel="noopener noreferrer" target="_blank">
+                <b>Gitee</b>
+                <v-icon icon="mdi-open-in-new" size="12" />
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-medium-emphasis label-cell">开源协议</td>
+            <td>
+              <a class="about-link" :href="GITHUB_REPO_URL + '/blob/master/LICENSE'" rel="noopener noreferrer" target="_blank">
+                GNU AGPL-3.0
+                <v-icon icon="mdi-open-in-new" size="12" />
+              </a>
+            </td>
+          </tr>
           <tr><td class="text-medium-emphasis label-cell">前端</td><td>{{ origin }}</td></tr>
           <tr><td class="text-medium-emphasis label-cell">接口</td><td>{{ apiBase }}</td></tr>
           <tr><td class="text-medium-emphasis label-cell">班级</td><td>{{ session.classInfo?.name || '-' }}</td></tr>
@@ -96,6 +119,7 @@ import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
 
 import { useSessionStore } from '@/stores/session'
 import { apiBase } from '@/lib/api'
+import { GITHUB_REPO_URL, GITEE_REPO_URL } from '@/lib/repoLinks'
 import {
   DEVICE_MODE_LABEL,
   deviceMode,
