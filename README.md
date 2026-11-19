@@ -13,6 +13,25 @@
 
 > 本项目以 GNU AGPL-3.0 协议开源，欢迎 Issue / PR。
 
+## 与原项目的关系
+
+星焰作业板是在 **Classworks**（<https://github.com/Moonrend/Classworks>）基础上的二次开发版本，并非从零实现。
+
+- 原项目：**Classworks** — 适用于班级大屏的作业板小工具，作者 [Moonrend](https://github.com/Moonrend)，同样是 AGPL-3.0 协议开源。
+- 本项目的界面版式、看板交互与核心使用场景沿用原项目，并在此之上重写了后端与数据层、补充了多端接入与运维能力，因此与原项目的「纯前端 + KV 存储」形态已不等同。
+
+相对原项目的主要改动：
+
+| 方向 | 改动 |
+| --- | --- |
+| 架构 | 由前端直连 KV 存储改为独立服务端（Express + Drizzle + MySQL + Socket.IO），数据不再依赖浏览器端 KV |
+| 多端 | 拆分为作业看板（PWA）、后台管理面板、Electron 桌面端三个应用，共享 `packages/shared` 的类型与校验 |
+| 设备接入 | 新增班级码 + 授权码的设备接入模型、设备在线状态与批量吊销、游客只读模式 |
+| 部署运维 | 新增静默自动更新（electron-updater，win7 / win10 三通道独立更新源）、NSIS 安装器选盘与免提权安装 |
+| 功能 | 新增课程时间段与上课暂停更新、考试管理、模板中心、后台数据统计等模块 |
+
+感谢原项目作者的开源工作。按 AGPL-3.0 要求，本项目同样以 AGPL-3.0 发布，完整源码见下方仓库链接。
+
 ## 功能概览
 
 | 模块 | 说明 |
@@ -97,3 +116,15 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 
 本项目基于 [GNU Affero General Public License v3.0](./LICENSE)（AGPL-3.0）开源，
 Copyright © 2022-2026 焰火工作室（StarFlame Studio）。
+
+本项目为 **Classworks**（<https://github.com/Moonrend/Classworks>，Copyright © Moonrend，AGPL-3.0）的二次开发版本，
+原项目的版权与许可声明同样适用于其保留下来的部分。
+
+AGPL-3.0 是强著佐权（strong copyleft）协议，要点：
+
+- 你可以自由使用、修改、分发本软件，包括商业使用。
+- 分发本软件或其衍生作品时，必须以同一协议开源，并提供完整对应源码。
+- **通过网络向用户提供服务（SaaS / 云部署）也视同分发**：必须向这些用户提供获取源码的途径。
+- 本软件按「现状」提供，不附带任何担保。
+
+如需在闭源商业场景中使用，请联系维护者获取商业授权。
