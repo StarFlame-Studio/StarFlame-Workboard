@@ -130,7 +130,7 @@ const error = ref('')
 const reloading = ref(false)
 
 function goClasses() {
-  window.location.href = '/classes.html'
+  window.location.href = '/classes'
 }
 
 async function loadClass() {

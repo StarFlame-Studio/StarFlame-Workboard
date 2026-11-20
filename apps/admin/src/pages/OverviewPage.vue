@@ -51,9 +51,9 @@
         <div class="text-caption text-medium-emphasis">{{ overview.date }}</div>
       </div>
       <div class="d-flex flex-wrap" style="gap: 10px">
-        <v-btn prepend-icon="mdi-plus" color="primary" variant="flat" @click="go('/classes.html')">新建班级</v-btn>
-        <v-btn prepend-icon="mdi-account-plus" variant="tonal" @click="go('/users.html')">新建用户</v-btn>
-        <v-btn prepend-icon="mdi-monitor-dashboard" variant="text" @click="go('/devices.html')">查看设备</v-btn>
+        <v-btn prepend-icon="mdi-plus" color="primary" variant="flat" @click="go('/classes')">新建班级</v-btn>
+        <v-btn prepend-icon="mdi-account-plus" variant="tonal" @click="go('/users')">新建用户</v-btn>
+        <v-btn prepend-icon="mdi-monitor-dashboard" variant="text" @click="go('/devices')">查看设备</v-btn>
       </div>
     </v-card>
 

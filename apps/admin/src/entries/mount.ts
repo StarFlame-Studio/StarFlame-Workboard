@@ -7,7 +7,7 @@ import AdminShell from '@/layouts/AdminShell.vue'
 import '@/styles/mdi-subset.css'
 import '@/style.css'
 
-const LOGIN_PAGE = '/login.html'
+const LOGIN_PAGE = '/login'
 
 function clearTokens(): void {
   localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
@@ -41,7 +41,7 @@ export function mountAdminPage(page: Component, active: string, title: string): 
   // 教师账号没有概览页权限，直接落到班级页
   const cachedRole = localStorage.getItem('sf.userRole') ?? ''
   if (active === 'overview' && cachedRole !== '' && !ADMIN_ONLY_ROLES.includes(cachedRole)) {
-    window.location.replace('/classes.html')
+    window.location.replace('/classes')
     return
   }
   document.title = '星焰作业板 · ' + title + ' · 管理后台'
