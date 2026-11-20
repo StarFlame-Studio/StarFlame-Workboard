@@ -8,7 +8,7 @@
         <v-btn icon="mdi-close" variant="text" @click="close" />
       </v-card-title>
       <v-card-subtitle>
-        发布后一体机大屏会立即弹窗提醒，需点击「我已阅读」才会关闭；勾选「置顶」的通知还会固定在首页通知区显示
+        开启「弹窗提醒」后一体机大屏会立即弹窗，需点击「我已阅读」才会关闭；勾选「置顶」的通知会固定在首页通知区显示。弹窗提醒与置顶至少要开启一项
       </v-card-subtitle>
       <v-divider />
       <v-card-text class="pa-4">
@@ -46,8 +46,10 @@
 
         <div class="d-flex align-center flex-wrap mt-1">
           <v-switch v-model="form.urgent" color="error" hide-details inset label="紧急（红色强调）" />
+          <v-switch v-model="form.popup" class="ml-4" color="primary" hide-details inset label="弹窗提醒（大屏立即弹出）" />
           <v-switch v-model="form.pinned" class="ml-4" color="primary" hide-details inset label="置顶（首页常驻显示）" />
         </div>
+        <div v-if="!form.popup && !form.pinned" class="text-caption text-error">弹窗提醒与置顶通知至少需要开启一项，否则家长和大屏都看不到这条通知</div>
 
         <v-alert v-if="error" class="mt-3" density="compact" type="error" variant="tonal">{{ error }}</v-alert>
 
@@ -72,7 +74,8 @@
               </v-icon>
               <span class="text-truncate font-weight-medium">{{ item.title || '通知' }}</span>
               <v-chip v-if="!item.readAt" class="ml-2" color="error" size="x-small" variant="tonal">本机未读</v-chip>
-              <v-chip v-if="!item.pinned" class="ml-1" size="x-small" variant="text">仅弹窗</v-chip>
+              <v-chip v-if="!item.popup" class="ml-1" size="x-small" variant="text">不弹窗</v-chip>
+              <v-chip v-if="!item.pinned" class="ml-1" size="x-small" variant="text">不置顶</v-chip>
               <v-spacer />
               <v-chip class="mr-1" size="x-small" variant="tonal">已读 {{ item.readCount ?? 0 }} / {{ deviceTotal }}</v-chip>
               <span class="text-caption text-medium-emphasis d-none d-sm-inline">{{ formatTime(item.publishAt) }}</span>
@@ -80,7 +83,7 @@
             <v-expansion-panel-text>
               <div class="text-body-2 mb-2" style="white-space: pre-wrap">{{ item.content || '（无正文）' }}</div>
               <div class="text-caption text-medium-emphasis mb-2">
-                {{ item.level === 'urgent' ? '加急' : '普通' }} · 发布 {{ formatTime(item.publishAt) }} · {{ expireText(item.expireAt) }}
+                {{ item.level === 'urgent' ? '加急' : '普通' }} · {{ item.popup === false ? '不弹窗' : '弹窗提醒' }} · 发布 {{ formatTime(item.publishAt) }} · {{ expireText(item.expireAt) }}
               </div>
               <div class="read-grid mb-2">
                 <v-chip
@@ -106,7 +109,7 @@
       <v-card-actions class="pa-4">
         <v-btn variant="text" @click="close">取消</v-btn>
         <v-spacer />
-        <v-btn v-if="!readOnly" :disabled="!form.title.trim() && !form.content.trim()" :loading="sending" color="primary" variant="elevated" @click="submit">
+        <v-btn v-if="!readOnly" :disabled="(!form.title.trim() && !form.content.trim()) || (!form.popup && !form.pinned)" :loading="sending" color="primary" variant="elevated" @click="submit">
           {{ editingId ? '保存修改' : '发送' }}
         </v-btn>
       </v-card-actions>
@@ -130,6 +133,7 @@ interface NoticeRow {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  popup: boolean
   publishAt: string
   expireAt: string | null
   readAt?: string | null
@@ -154,7 +158,7 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 })
 
-const form = reactive({ title: '', content: '', urgent: false, pinned: true })
+const form = reactive({ title: '', content: '', urgent: false, pinned: true, popup: true })
 const sending = ref(false)
 const error = ref('')
 
@@ -238,6 +242,7 @@ function resetForm(): void {
   form.content = ''
   form.urgent = false
   form.pinned = true
+  form.popup = true
   duration.value = '30'
   customExpire.value = ''
   error.value = ''
@@ -249,6 +254,7 @@ function startEdit(item: NoticeRow): void {
   form.content = item.content
   form.urgent = item.level === 'urgent'
   form.pinned = item.pinned
+  form.popup = item.popup !== false
   if (item.expireAt) {
     const date = new Date(item.expireAt)
     duration.value = 'custom'
@@ -279,6 +285,10 @@ async function submit(): Promise<void> {
     return
   }
   if (sending.value || (!form.title.trim() && !form.content.trim())) return
+  if (!form.popup && !form.pinned) {
+    error.value = '弹窗提醒与置顶通知至少需要开启一项'
+    return
+  }
   sending.value = true
   error.value = ''
   try {
@@ -287,6 +297,7 @@ async function submit(): Promise<void> {
       content: form.content.trim(),
       level: form.urgent ? 'urgent' : 'info',
       pinned: form.pinned,
+      popup: form.popup,
       // 未置顶的通知只弹窗，不需要有效期
       expireAt: form.pinned ? resolveExpireAt() : null,
     }

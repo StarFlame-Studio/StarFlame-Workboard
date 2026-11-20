@@ -63,6 +63,8 @@ export interface NoticeItem {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  /** 发布时是否在大屏弹窗提醒 */
+  popup: boolean
   publishAt: string
   expireAt: string | null
   /** 当前设备已读时间（未读为 null） */

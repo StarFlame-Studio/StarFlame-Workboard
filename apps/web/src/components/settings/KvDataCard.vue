@@ -5,7 +5,7 @@
     </template>
 
     <v-alert class="ma-2" density="compact" type="info" variant="tonal">
-      这里展示当前班级在云端的全部数据实体（对应原项目的 KV 键）。点击操作可查看内容。
+      这里展示当前班级在云端的全部数据实体。点击操作可查看内容。
     </v-alert>
 
     <v-list-subheader>数据条目 · 共 {{ items.length }} 条</v-list-subheader>

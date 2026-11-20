@@ -443,7 +443,7 @@
   />
 
   <v-navigation-drawer v-model="noticeDrawer" location="right" temporary width="420">
-    <v-list-item subtitle="新通知会自动弹窗，需点击「我已阅读」才会关闭" title="通知" />
+    <v-list-item subtitle="开启「弹窗提醒」的新通知会自动弹窗，需点击「我已阅读」才会关闭" title="通知" />
     <v-divider />
     <v-list v-if="board.notices.length">
       <v-list-item v-for="item in board.notices" :key="item.id" @click="openNotice(item)">
@@ -455,6 +455,7 @@
         <v-list-item-title class="d-flex align-center">
           <span class="text-truncate">{{ item.title || '通知' }}</span>
           <v-chip v-if="!item.readAt" class="ml-2" color="error" size="x-small" variant="flat">未读</v-chip>
+          <v-chip v-if="item.popup === false" class="ml-2" size="x-small" variant="tonal">不弹窗</v-chip>
         </v-list-item-title>
         <v-list-item-subtitle class="text-truncate">{{ item.content || '（无正文）' }}</v-list-item-subtitle>
         <template #append>
@@ -477,6 +478,7 @@
       <v-divider />
       <v-card-text class="pa-6">
         <div class="text-h4 font-weight-medium mb-4" style="line-height: 1.5">{{ activeNotice.title || '通知' }}</div>
+        <div v-if="activeNotice.popup === false" class="text-caption text-medium-emphasis mb-2">该通知未开启弹窗提醒，仅在此处与首页通知区展示</div>
         <div class="text-subtitle-1 text-grey">{{ activeNotice.content }}</div>
       </v-card-text>
       <v-divider />
@@ -663,6 +665,8 @@ function enqueueUnreadNotices(items: NoticeItem[]): void {
   if (session.role !== 'terminal') return
   for (const item of items) {
     if (item.readAt) continue
+    // 关闭「弹窗提醒」的通知只在首页通知区/抽屉里展示，不打断大屏
+    if (item.popup === false) continue
     if (noticeReadQueue.value.some((queued) => queued.id === item.id)) continue
     noticeReadQueue.value.push(item)
   }
@@ -714,7 +718,9 @@ function handleFreshNotices(): void {
   for (const item of fresh) knownNoticeIds.add(item.id)
 
   enqueueUnreadNotices(fresh)
-  for (const item of fresh) {
+  // 只有开启「弹窗提醒」的通知才走系统通知与提示音
+  const popupFresh = fresh.filter((item) => item.popup !== false)
+  for (const item of popupFresh) {
     sendSystemNotice(
       item.level === 'urgent' ? '加急通知 · ' + item.title : '班级通知 · ' + item.title,
       item.content || '点击查看通知详情',
@@ -722,11 +728,12 @@ function handleFreshNotices(): void {
     )
   }
 
+  if (popupFresh.length === 0) return
   if (settings.value['notification.enabled'] === false) return
   if (isReadOnly.value) return
 
   const volume = Number(settings.value['notification.volume'] ?? 70) / 100
-  const hasUrgent = fresh.some((item) => item.level === 'urgent')
+  const hasUrgent = popupFresh.some((item) => item.level === 'urgent')
   const soundId = String(
     hasUrgent
       ? settings.value['notification.urgentSound'] ?? 'alert'

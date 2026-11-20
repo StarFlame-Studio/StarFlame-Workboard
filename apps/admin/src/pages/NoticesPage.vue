@@ -71,6 +71,10 @@
             <v-chip v-if="item.pinned" color="warning" size="small" variant="tonal">置顶</v-chip>
             <span v-else class="text-medium-emphasis">—</span>
           </template>
+          <template #item.popup="{ item }">
+            <v-chip v-if="item.popup" color="primary" size="small" variant="tonal">弹窗</v-chip>
+            <span v-else class="text-medium-emphasis">—</span>
+          </template>
           <template #item.publishAt="{ item }">{{ formatDate(item.publishAt) }}</template>
           <template #item.expireAt="{ item }">{{ item.expireAt ? formatDate(item.expireAt) : '不过期' }}</template>
           <template #item.actions="{ item }">
@@ -105,6 +109,7 @@
           <v-select v-model="broadcast.level" :items="levelOptions" density="compact" hide-details label="级别" variant="outlined" />
           <v-text-field v-model="broadcast.expireAt" density="compact" hide-details label="过期日期（可选）" type="date" variant="outlined" />
           <v-switch v-model="broadcast.pinned" color="primary" density="compact" hide-details label="置顶" />
+          <v-switch v-model="broadcast.popup" color="primary" density="compact" hide-details label="弹窗提醒" />
           <v-btn
             :loading="broadcasting"
             color="primary"
@@ -136,6 +141,7 @@
               <v-select v-model="row.level" :items="levelOptions" density="compact" hide-details label="级别" variant="outlined" />
               <v-text-field v-model="row.expireAt" density="compact" hide-details label="过期日期（可选）" type="date" variant="outlined" />
               <v-switch v-model="row.pinned" color="primary" density="compact" hide-details label="置顶" />
+              <v-switch v-model="row.popup" color="primary" density="compact" hide-details label="弹窗提醒" />
             </div>
           </v-card>
         </div>
@@ -188,6 +194,7 @@ interface BatchRow {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  popup: boolean
   expireAt: string
 }
 
@@ -203,6 +210,7 @@ const headers = [
   { title: '通知', key: 'title' },
   { title: '级别', key: 'level', sortable: false },
   { title: '置顶', key: 'pinned', sortable: false },
+  { title: '弹窗提醒', key: 'popup', sortable: false },
   { title: '发布时间', key: 'publishAt' },
   { title: '过期时间', key: 'expireAt' },
   { title: '操作', key: 'actions', sortable: false, align: 'end' as const },
@@ -270,6 +278,7 @@ const broadcast = reactive({
   content: '',
   level: 'info' as 'info' | 'urgent',
   pinned: false,
+  popup: true,
   expireAt: '',
 })
 const broadcasting = ref(false)
@@ -284,6 +293,10 @@ async function submitBroadcast(): Promise<void> {
     notify('标题与内容不能同时为空', 'warning')
     return
   }
+  if (!broadcast.popup && !broadcast.pinned) {
+    notify('弹窗提醒与置顶通知至少需要开启一项', 'warning')
+    return
+  }
   broadcasting.value = true
   try {
     const result = await broadcastNotice(broadcast.classIds, {
@@ -291,6 +304,7 @@ async function submitBroadcast(): Promise<void> {
       content: broadcast.content.trim(),
       level: broadcast.level,
       pinned: broadcast.pinned,
+      popup: broadcast.popup,
       expireAt: broadcast.expireAt ? new Date(broadcast.expireAt + 'T23:59:59').toISOString() : null,
     })
     notify('已发布到 ' + result.created + ' 个班级')
@@ -299,6 +313,7 @@ async function submitBroadcast(): Promise<void> {
     broadcast.content = ''
     broadcast.level = 'info'
     broadcast.pinned = false
+    broadcast.popup = true
     broadcast.expireAt = ''
     page.value = 1
     await load()
@@ -315,7 +330,7 @@ const batchRows = ref<BatchRow[]>([])
 const batching = ref(false)
 
 function emptyRow(): BatchRow {
-  return { classId: '', title: '', content: '', level: 'info', pinned: false, expireAt: '' }
+  return { classId: '', title: '', content: '', level: 'info', pinned: false, popup: true, expireAt: '' }
 }
 
 function addBatchRow(): void {
@@ -337,6 +352,10 @@ async function submitBatch(): Promise<void> {
     notify('每条通知都需要选择一个班级', 'warning')
     return
   }
+  if (filled.some((row) => !row.popup && !row.pinned)) {
+    notify('每条通知的弹窗提醒与置顶通知至少需要开启一项', 'warning')
+    return
+  }
   batching.value = true
   try {
     const result = await batchSendNotices(
@@ -346,6 +365,7 @@ async function submitBatch(): Promise<void> {
         content: row.content.trim(),
         level: row.level,
         pinned: row.pinned,
+        popup: row.popup,
         expireAt: row.expireAt ? new Date(row.expireAt + 'T23:59:59').toISOString() : null,
       })),
     )
@@ -445,7 +465,7 @@ onMounted(async () => {
 }
 
 .form-grid--broadcast {
-  grid-template-columns: 150px 200px 110px minmax(0, 1fr);
+  grid-template-columns: 150px 200px 110px 130px minmax(0, 1fr);
   justify-items: start;
 }
 
@@ -454,7 +474,7 @@ onMounted(async () => {
 }
 
 .form-grid--batch-bottom {
-  grid-template-columns: 150px 200px 110px;
+  grid-template-columns: 150px 200px 110px 130px;
   justify-items: start;
 }
 

@@ -76,6 +76,8 @@ export const noticeCreateSchema = z.object({
   content: z.string().max(2000).default(''),
   level: z.enum(['info', 'urgent']).default('info'),
   pinned: z.boolean().default(false),
+  /** 发布时是否在大屏弹窗提醒；与 pinned 至少开启一项 */
+  popup: z.boolean().default(true),
   expireAt: z.string().datetime().nullable().optional(),
 })
 
@@ -91,6 +93,7 @@ export const noticeBroadcastSchema = z.object({
   content: z.string().max(2000).default(''),
   level: z.enum(['info', 'urgent']).default('info'),
   pinned: z.boolean().default(false),
+  popup: z.boolean().default(true),
   expireAt: z.string().datetime().nullable().optional(),
 })
 
@@ -101,6 +104,7 @@ export const noticeBatchItemSchema = z.object({
   content: z.string().max(2000).default(''),
   level: z.enum(['info', 'urgent']).default('info'),
   pinned: z.boolean().default(false),
+  popup: z.boolean().default(true),
   expireAt: z.string().datetime().nullable().optional(),
 })
 

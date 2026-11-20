@@ -191,6 +191,7 @@ router.get('/bootstrap', readLimiter, async (req, res, next) => {
         pinned: n.pinned,
         publishAt: n.publishAt,
         expireAt: n.expireAt,
+        popup: n.popup,
         readAt: noticeMyRead.get(n.id)?.toISOString() ?? null,
         readCount: noticeReadCount.get(n.id) ?? 0,
       })),
@@ -937,6 +938,7 @@ router.get('/notices', readLimiter, async (req, res, next) => {
         content: n.content ?? '',
         level: n.level,
         pinned: n.pinned,
+        popup: n.popup,
         publishAt: n.publishAt,
         expireAt: n.expireAt,
         readCount: readCount.get(n.id) ?? 0,
@@ -959,8 +961,10 @@ router.post('/notices', writeLimiter, requireWritable, validateBody(noticeCreate
       content: string
       level: 'info' | 'urgent'
       pinned: boolean
+      popup: boolean
       expireAt?: string | null
     }
+    if (!input.pinned && !input.popup) throw badRequest('弹窗提醒与置顶通知至少需要开启一项')
     const id = newId()
     const actorId = req.user?.id ?? req.device?.id ?? ''
     await db.insert(notices).values({
@@ -970,6 +974,7 @@ router.post('/notices', writeLimiter, requireWritable, validateBody(noticeCreate
       content: input.content,
       level: input.level,
       pinned: input.pinned,
+      popup: input.popup,
       publishAt: new Date(),
       expireAt: input.expireAt ? new Date(input.expireAt) : null,
       createdBy: actorId,
@@ -1005,8 +1010,12 @@ router.patch('/notices/:id', writeLimiter, requireWritable, validateBody(noticeU
     if (input.content !== undefined) patch.content = input.content
     if (input.level !== undefined) patch.level = input.level
     if (input.pinned !== undefined) patch.pinned = input.pinned
+    if (input.popup !== undefined) patch.popup = input.popup
     if (input.expireAt !== undefined) patch.expireAt = input.expireAt ? new Date(input.expireAt as string) : null
     if (Object.keys(patch).length === 0) throw badRequest('没有需要更新的字段')
+    const nextPinned = (patch.pinned as boolean | undefined) ?? rows[0].pinned
+    const nextPopup = (patch.popup as boolean | undefined) ?? rows[0].popup
+    if (!nextPinned && !nextPopup) throw badRequest('弹窗提醒与置顶通知至少需要开启一项')
     await db.update(notices).set(patch).where(eq(notices.id, noticeId))
     broadcastChange({ classId, scope: 'notice', action: 'update' })
     ok(res, { id: noticeId, updated: true })

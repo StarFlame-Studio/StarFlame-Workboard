@@ -23,6 +23,7 @@
             <v-icon :color="notice.level === 'urgent' ? 'error' : 'info'" size="18">{{ notice.level === 'urgent' ? 'mdi-alert-circle-outline' : 'mdi-information-outline' }}</v-icon>
             <span class="text-subtitle-2 font-weight-medium">{{ notice.title || '通知' }}</span>
             <v-chip v-if="notice.pinned" size="x-small" variant="tonal" color="warning">置顶</v-chip>
+            <v-chip v-if="notice.popup" size="x-small" variant="tonal" color="primary">弹窗</v-chip>
             <v-chip size="x-small" variant="tonal">已读 {{ notice.readCount ?? 0 }}</v-chip>
             <v-spacer />
             <v-btn size="x-small" variant="text" @click="openEdit(notice)">编辑</v-btn>
@@ -30,7 +31,7 @@
           </div>
           <div class="text-body-2 notice-content">{{ notice.content }}</div>
           <div class="text-caption text-medium-emphasis mt-2">
-            {{ notice.level === 'urgent' ? '紧急' : '普通' }} · 发布 {{ formatDate(notice.publishAt) }}<span v-if="notice.expireAt"> · 过期 {{ formatDate(notice.expireAt) }}</span>
+            {{ notice.level === 'urgent' ? '紧急' : '普通' }} · {{ notice.popup ? '弹窗提醒' : '不弹窗' }} · 发布 {{ formatDate(notice.publishAt) }}<span v-if="notice.expireAt"> · 过期 {{ formatDate(notice.expireAt) }}</span>
           </div>
         </v-card>
       </v-col>
@@ -50,10 +51,12 @@
             <v-col cols="12" md="4">
               <v-text-field v-model="form.expireAt" type="date" label="过期日期（可选）" density="compact" variant="outlined" hide-details />
             </v-col>
-            <v-col cols="12" md="4" class="d-flex align-center">
+            <v-col cols="12" md="4" class="d-flex flex-column align-start">
               <v-switch v-model="form.pinned" label="置顶" color="primary" density="compact" hide-details />
+              <v-switch v-model="form.popup" label="弹窗提醒" color="primary" density="compact" hide-details />
             </v-col>
           </v-row>
+          <div v-if="!form.popup && !form.pinned" class="text-caption text-error mt-2">弹窗提醒与置顶通知至少需要开启一项</div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -84,7 +87,7 @@ const saving = ref(false)
 const error = ref('')
 const formError = ref('')
 const dialog = ref(false)
-const form = reactive({ id: '', title: '', content: '', level: 'info' as 'info' | 'urgent', pinned: false, expireAt: '' })
+const form = reactive({ id: '', title: '', content: '', level: 'info' as 'info' | 'urgent', pinned: false, popup: true, expireAt: '' })
 
 const levelOptions = [
   { title: '普通', value: 'info' },
@@ -125,6 +128,7 @@ function openCreate() {
   form.content = ''
   form.level = 'info'
   form.pinned = false
+  form.popup = true
   form.expireAt = ''
   formError.value = ''
   dialog.value = true
@@ -136,6 +140,7 @@ function openEdit(notice: Notice) {
   form.content = notice.content
   form.level = notice.level
   form.pinned = notice.pinned
+  form.popup = notice.popup !== false
   form.expireAt = toDateInput(notice.expireAt)
   formError.value = ''
   dialog.value = true
@@ -150,6 +155,10 @@ async function submit() {
     formError.value = '请填写内容'
     return
   }
+  if (!form.popup && !form.pinned) {
+    formError.value = '弹窗提醒与置顶通知至少需要开启一项'
+    return
+  }
   saving.value = true
   formError.value = ''
   const payload = {
@@ -157,6 +166,7 @@ async function submit() {
     content: form.content.trim(),
     level: form.level,
     pinned: form.pinned,
+    popup: form.popup,
     expireAt: form.expireAt ? new Date(form.expireAt + 'T23:59:59').toISOString() : null,
   }
   try {
