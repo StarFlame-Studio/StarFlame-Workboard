@@ -104,9 +104,7 @@ export const SETTING_DEFS: SettingDef[] = [
       sun: null,
     } },
   { key: 'schedule.periods', title: '每天课程时间段', desc: '各天的上课节次时间；上课时段内暂停桌面端静默更新', icon: 'mdi-timetable', type: 'json', default: {} },
-  num('schedule.bellOffset', '课铃偏移时间', 0, -60, 60, 1, 'mdi-bell-ring', '单位：分钟；正数=提前响铃，负数=延后响铃（只影响放学倒计时）'),
-  bool('schedule.bellOffsetAuto', '每天自动调整课铃偏移', false, 'mdi-calendar-clock', '开启后按周几分别设置偏移，每天自动套用当天的值'),
-  { key: 'schedule.bellOffsets', title: '每天的课铃偏移', desc: '按周几分别设置的偏移分钟数；留空的日子沿用统一偏移', icon: 'mdi-calendar-week', type: 'json', default: {} },
+  num('schedule.bellOffset', '课铃偏移时间', 0, -1800, 1800, 1, 'mdi-bell-ring', '单位：秒；正数=提前响铃，负数=延后响铃（只影响放学倒计时）'),
   bool('update.pauseDuringClass', '上课时段暂停静默更新', true, 'mdi-pause-circle-outline', '上课时间不下载、不安装，下课后 5 分钟自动继续；仅桌面端生效'),
 
   // ---- 时间同步 timeSync.* ----

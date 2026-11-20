@@ -100,9 +100,10 @@ const KEY_LABELS: Record<string, string> = {
   examCardIds: '考试卡片',
   'schedule.weekly': '作息时间',
   'schedule.periods': '课程时间段',
-  'schedule.bellOffset': '课铃偏移时间',
-  'schedule.bellOffsetAuto': '每天自动调整课铃偏移',
-  'schedule.bellOffsets': '每天的课铃偏移',
+  'schedule.bellOffset': '课铃偏移时间（秒）',
+  // 旧键：早期版本曾支持按周几分别设置偏移
+  'schedule.bellOffsetAuto': '每天自动调整课铃偏移（旧）',
+  'schedule.bellOffsets': '每天的课铃偏移（旧）',
   homeworkTemplate: '作业模板',
   // 旧扁平键：历史备份文件里仍可能出现
   'fontScale': '字体缩放',

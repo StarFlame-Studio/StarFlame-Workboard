@@ -68,7 +68,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TimeCardFullscreen from '@/components/TimeCardFullscreen.vue'
 import { serverNow, startTimeSync } from '@/lib/serverTime'
-import { bellOffsetForDate, describeBellOffset, type BellOffsetConfig } from '@/lib/bellOffset'
+import { describeBellOffset, type BellOffsetConfig } from '@/lib/bellOffset'
 import {
   formatBadge,
   formatClock,
@@ -91,7 +91,7 @@ const props = withDefaults(
     /** 课铃偏移：只调整「距离放学」倒计时，时钟与作息时间文字保持原样 */
     bell?: BellOffsetConfig
   }>(),
-  { use12h: false, weekly: () => ({}), bell: () => ({ auto: false, global: 0, days: {} }) },
+  { use12h: false, weekly: () => ({}), bell: () => ({ seconds: 0 }) },
 )
 
 const now = ref(new Date())
@@ -202,10 +202,10 @@ const school = computed(() => {
   const d = now.value
   const startAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startT.h, startT.m, 0, 0)
 
-  /** 课铃偏移（分钟）：正数提前，负数延后；只影响倒计时的终点，时间文字仍显示作息原值 */
-  const bellOffset = bellOffsetForDate(props.bell, d)
+  /** 课铃偏移（秒）：正数提前，负数延后；只影响倒计时的终点，时间文字仍显示作息原值 */
+  const bellOffset = props.bell?.seconds ?? 0
   const dayEndAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), endT.h, endT.m, 0, 0)
-  dayEndAt.setMinutes(dayEndAt.getMinutes() - bellOffset)
+  dayEndAt.setSeconds(dayEndAt.getSeconds() - bellOffset)
 
   // 住宿生放学：只有晚于走读放学时间时才作为第二阶段
   const boardingT = day.endBoarding ? parseTime(day.endBoarding) : null
@@ -223,7 +223,7 @@ const school = computed(() => {
       )
     : null
   // 住宿生放学同样跟随课铃偏移
-  if (boardEndAt) boardEndAt.setMinutes(boardEndAt.getMinutes() - bellOffset)
+  if (boardEndAt) boardEndAt.setSeconds(boardEndAt.getSeconds() - bellOffset)
 
   const t = d.getTime()
   const startMs = startAt.getTime()

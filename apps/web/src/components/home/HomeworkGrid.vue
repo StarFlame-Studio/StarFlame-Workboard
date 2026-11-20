@@ -242,7 +242,7 @@ const props = withDefaults(
     cardHoverEffect: true,
     enhancedTouch: true,
     dynamicSort: true,
-    bell: () => ({ auto: false, global: 0, days: {} }),
+    bell: () => ({ seconds: 0 }),
   },
 )
 
