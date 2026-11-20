@@ -69,7 +69,19 @@ export interface ChangelogAreaView {
  * 尚未发布的版本条目：真正打包发布时，把条目从这里移到 CHANGELOG 顶部。
  * 目的：网页端不要在桌面端安装包上传完成前就提前展示新版本号与更新内容。
  */
-export const PENDING_CHANGELOG: ChangelogEntry[] = []
+export const PENDING_CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.1.8',
+    date: '2026-11-21',
+    summary: '移除设置页的开发者选项',
+    desktop: true,
+    board: {
+      improved: [
+        '移除设置页的「开发者选项」：设置页只保留日常会用到的功能，界面更清爽',
+      ],
+    },
+  },
+]
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
