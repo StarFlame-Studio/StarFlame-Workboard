@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import { Server } from 'socket.io'
 import { eq } from 'drizzle-orm'
 import { HEADER_DEVICE_TOKEN } from '@starflame/shared'
@@ -132,6 +133,9 @@ export function initSocket(server: HttpServer): Server {
 
     socket.emit('board.connected', { classIds, at: Date.now() })
 
+    // 设备上次离线时挂起的指令（如远程卸载）在这里补发：设备一上线就执行，不需要人工重试
+    if (deviceId) flushPendingCommands(deviceId)
+
     socket.on('board.ping', (payload: { at?: number } | undefined, ack?: (v: unknown) => void) => {
       if (typeof ack === 'function') ack({ at: payload?.at ?? Date.now(), serverTime: Date.now() })
     })
@@ -187,14 +191,86 @@ export function sendDeviceCommand(
   command: { type: string; [key: string]: unknown },
 ): number {
   if (!io || !deviceId) return 0
+  // 每条指令都带唯一 id：设备回执时带上它，便于排查「下发了几次、谁执行的」
+  const payload = { ...withCommandId(command), at: Date.now() }
   let sent = 0
   for (const socket of io.sockets.sockets.values()) {
     const targetId = (socket.data.deviceId as string) || ''
     if (targetId !== deviceId) continue
-    socket.emit('device.command', { ...command, at: Date.now() })
+    socket.emit('device.command', payload)
     sent += 1
   }
   return sent
+}
+
+/**
+ * 在途设备指令：设备当前不在线时先挂起，等它下次连上实时层自动补发。
+ * 后台「远程卸载」用这条路径，保证离线设备联网后也会被执行，不需要人工再点一次。
+ * key = deviceId，value = { command, at }。
+ */
+const PENDING_COMMAND_TTL_MS = 24 * 60 * 60 * 1000
+const pendingCommands = new Map<string, { command: { type: string; [key: string]: unknown }; at: number }>()
+
+function sweepPendingCommands(now = Date.now()): void {
+  for (const [deviceId, entry] of pendingCommands) {
+    if (now - entry.at > PENDING_COMMAND_TTL_MS) pendingCommands.delete(deviceId)
+  }
+}
+
+/** 挂起一条设备指令，等设备上线后补发 */
+export function queueDeviceCommand(deviceId: string, command: { type: string; [key: string]: unknown }): void {
+  if (!deviceId) return
+  sweepPendingCommands()
+  pendingCommands.set(deviceId, { command: withCommandId(command), at: Date.now() })
+}
+
+/** 下发指令时带上唯一 id，便于客户端回执 */
+function withCommandId(command: { type: string; [key: string]: unknown }): { type: string; id: string } {
+  return { ...command, id: command.id ? String(command.id) : randomUUID() } as { type: string; id: string }
+}
+
+/** 设备是否有在途指令（后台列表据此显示「指令待送达」） */
+export function hasPendingDeviceCommand(deviceId: string): boolean {
+  if (!deviceId) return false
+  const entry = pendingCommands.get(deviceId)
+  if (!entry) return false
+  if (Date.now() - entry.at > PENDING_COMMAND_TTL_MS) {
+    pendingCommands.delete(deviceId)
+    return false
+  }
+  return true
+}
+
+/** 设备连接建立后补发在途指令；返回补发条数 */
+function flushPendingCommands(deviceId: string): number {
+  const entry = pendingCommands.get(deviceId)
+  if (!entry) return 0
+  if (Date.now() - entry.at > PENDING_COMMAND_TTL_MS) {
+    pendingCommands.delete(deviceId)
+    return 0
+  }
+  const sent = sendDeviceCommand(deviceId, entry.command)
+  if (sent > 0) {
+    logger.info({ deviceId, type: entry.command.type }, 'pending device command flushed on connect')
+  }
+  return sent
+}
+
+/** 设备对指令的执行回执（目前只区分 done / unsupported / failed），仅用于清空在途队列与排查 */
+const lastCommandAck = new Map<string, { status: string; at: number }>()
+
+/** 记录设备回执：无论成功与否都清掉在途指令，避免设备重连后被反复下发 */
+export function ackDeviceCommand(deviceId: string, status: string): void {
+  if (!deviceId) return
+  pendingCommands.delete(deviceId)
+  lastCommandAck.set(deviceId, { status, at: Date.now() })
+  logger.info({ deviceId, status }, 'device command ack')
+}
+
+/** 设备最近一次指令回执状态（没有回执返回 null） */
+export function deviceCommandAck(deviceId: string): string | null {
+  const entry = lastCommandAck.get(deviceId)
+  return entry ? entry.status : null
 }
 
 export function getIo(): Server | null {

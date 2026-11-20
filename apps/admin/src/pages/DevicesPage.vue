@@ -97,7 +97,16 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn size="small" variant="text" @click="openDetail(item)">详情</v-btn>
-          <v-btn color="warning" size="small" variant="text" @click="askUninstall(item)">卸载</v-btn>
+          <v-btn
+            v-if="!item.uninstallPending"
+            color="warning"
+            size="small"
+            variant="text"
+            @click="askUninstall(item)"
+          >
+            卸载
+          </v-btn>
+          <v-chip v-else color="warning" size="small" variant="tonal">卸载待送达</v-chip>
           <v-btn color="error" size="small" variant="text" @click="askRevoke(item)">吊销</v-btn>
         </template>
         <template #no-data>
@@ -205,10 +214,12 @@
         <v-card-title>远程卸载桌面版</v-card-title>
         <v-card-text class="text-body-2">
           <p class="mb-2">
-            将向「{{ uninstallTarget.name || '该设备' }}」下发卸载指令，桌面版星焰作业板会静默卸载并退出。
+            将向「{{ uninstallTarget.name || '该设备' }}」下发卸载指令，桌面版星焰作业板收到后会
+            <strong>立即静默卸载并退出，设备上不需要任何人操作</strong>。
           </p>
           <v-alert class="mb-0" density="compact" type="info" variant="tonal">
-            仅对正在运行且处于在线状态的桌面端有效；网页端、已关闭或离线的设备收不到指令。
+            在线设备几秒内开始卸载；当前不在线的设备，指令会保留 24 小时，下次开机联网后自动执行。
+            用浏览器打开网页端的设备不受影响。
           </v-alert>
         </v-card-text>
         <v-card-actions>
@@ -245,6 +256,8 @@ interface DeviceRow {
   lastSeenAt: string | null
   createdAt: string | null
   online: boolean
+  /** 已下发但设备还没上线的远程卸载指令（后台显示「待送达」） */
+  uninstallPending?: boolean
 }
 
 interface DeviceListResult {
@@ -472,14 +485,15 @@ async function doUninstall(): Promise<void> {
   if (!target) return
   uninstalling.value = true
   try {
-    const result = await postData<{ sent: number; delivered: boolean }>(
+    const result = await postData<{ sent: number; delivered: boolean; pending: boolean }>(
       '/admin/devices/' + target.id + '/uninstall',
     )
     if (result.delivered) {
       notify('已下发卸载指令，设备将在几秒内开始卸载')
     } else {
-      notify('设备当前不在线，卸载指令未送达', 'warning')
+      notify('设备当前不在线，指令已保留，设备下次上线会自动卸载', 'warning')
     }
+    void load()
     uninstallOpen.value = false
     uninstallTarget.value = null
   } catch (error) {

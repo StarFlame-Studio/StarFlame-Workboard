@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { and, eq } from 'drizzle-orm'
-import { DEVICE_ROLE_LABEL, deviceLoginSchema, type DeviceRole } from '@starflame/shared'
+import { DEVICE_ROLE_LABEL, deviceCommandAckSchema, deviceLoginSchema, type DeviceRole } from '@starflame/shared'
 import { db } from '../db/index.js'
 import { classAccessCodes, classes, devices } from '../db/schema.js'
 import { accessDisabled, accessExpired, badBindCode, guestDisabled, notFound, ok, unauthorized } from '../lib/http.js'
@@ -11,6 +11,7 @@ import { bindLimiter, clientIp, writeLimiter } from '../middleware/rateLimit.js'
 import { validateBody } from '../middleware/validate.js'
 import { requireDevice } from '../middleware/auth.js'
 import { forgetDeviceActivity } from '../services/devicePresence.js'
+import { ackDeviceCommand } from '../realtime/socket.js'
 
 const router = Router()
 
@@ -217,6 +218,20 @@ router.post('/heartbeat', writeLimiter, requireDevice, async (req, res, next) =>
       .set({ lastSeenAt: new Date(), lastIp: clientIp(req), ...(userAgent ? { userAgent } : {}) })
       .where(eq(devices.id, req.device!.id))
     ok(res, { online: true, serverTime: new Date().toISOString() })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/**
+ * 远程指令回执：设备执行（或明确表示无法执行）后上报一次，服务端据此清掉在途队列，
+ * 避免设备重连时被杀不掉的指令反复下发。
+ */
+router.post('/command-ack', writeLimiter, validateBody(deviceCommandAckSchema), requireDevice, async (req, res, next) => {
+  try {
+    const input = req.validated as { id?: string; type: string; status: string; message?: string }
+    ackDeviceCommand(req.device!.id, input.status)
+    ok(res, { received: true, id: input.id ?? null, status: input.status })
   } catch (error) {
     next(error)
   }

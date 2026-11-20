@@ -46,7 +46,13 @@ import { requireAdmin, requireUser } from '../middleware/auth.js'
 import { validateBody } from '../middleware/validate.js'
 import { seedSubjects } from '../services/classService.js'
 import { deviceActivityAt, forgetDeviceActivity, isDeviceOnline } from '../services/devicePresence.js'
-import { broadcastChange, disconnectDeviceSockets, sendDeviceCommand } from '../realtime/socket.js'
+import {
+  broadcastChange,
+  disconnectDeviceSockets,
+  hasPendingDeviceCommand,
+  queueDeviceCommand,
+  sendDeviceCommand,
+} from '../realtime/socket.js'
 
 const router = Router()
 
@@ -733,6 +739,8 @@ router.get('/devices', async (req, res, next) => {
         ...row,
         lastSeenAt: effectiveLastSeen,
         online: isDeviceOnline(row.id, row.lastSeenAt, now),
+        // 已下发但设备还没上线的远程卸载指令：后台显示「待送达」，用户不必反复点击
+        uninstallPending: hasPendingDeviceCommand(row.id),
       }
     })
     const onlineCount = decorated.filter((row) => row.online).length
@@ -784,8 +792,8 @@ router.delete('/devices/:id', writeLimiter, async (req, res, next) => {
 
 /**
  * 远程卸载设备上的桌面版作业板。
- * 仅对已建立实时连接的桌面端有效：通过 socket 下发 device.command 指令，
- * 客户端收到后自行调用卸载程序退出。网页端/离线设备收不到指令，sent 为 0。
+ * 通过 socket 下发 device.command 指令，客户端收到后不做任何确认、直接静默卸载并退出；
+ * 设备当前不在线时把指令挂起，等它下次连上实时层自动补发（24 小时内有效）。
  */
 router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
   try {
@@ -794,17 +802,20 @@ router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
     if (!rows[0]) throw notFound('设备不存在')
     if (rows[0].status !== 'active') throw badRequest('该设备已被吊销，无法远程卸载')
 
+    // 在线设备立即下发；离线设备把指令挂起，等它下次连上实时层自动执行（24 小时内有效）
     const sent = sendDeviceCommand(deviceId, { type: 'uninstall' })
+    if (sent === 0) queueDeviceCommand(deviceId, { type: 'uninstall' })
+
     await writeAudit({
       actorType: 'user',
       actorId: req.user!.id,
       classId: rows[0].classId,
       action: 'device.uninstall',
       target: deviceId,
-      detail: { sent, name: rows[0].name },
+      detail: { sent, pending: sent === 0, name: rows[0].name },
       ip: clientIp(req),
     })
-    ok(res, { id: deviceId, sent, delivered: sent > 0 })
+    ok(res, { id: deviceId, sent, delivered: sent > 0, pending: sent === 0 })
   } catch (error) {
     next(error)
   }
