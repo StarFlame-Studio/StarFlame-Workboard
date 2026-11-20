@@ -1675,6 +1675,15 @@ onBeforeUnmount(() => {
   letter-spacing: 0!important;
 }
 
+/* Vuetify 的标题占位层是块级 div，内部 inline 元素按基线对齐，
+   logo 与两行文字会被整体压到下方，顶栏顶部因此留出一大块空白。
+   改成 flex 居中后再让子元素垂直居中对齐。 */
+.board-title :deep(.v-toolbar-title__placeholder) {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+}
+
 .board-headings {
   min-width: 0;
   /* 必须是 inline-flex：display:flex 会变成块级元素把 logo 挤到上一行 */
