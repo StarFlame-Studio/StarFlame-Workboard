@@ -9,7 +9,10 @@
       <span class="board-brand">
         <img class="board-logo" :src="logoUrl" alt="星焰作业板" />
       </span>
-      <span class="board-heading">{{ compact ? className || '星焰作业板' : titleText }}</span>
+      <span class="board-headings">
+        <span v-if="showBrandLine" class="board-overline">星焰作业板</span>
+        <span class="board-heading">{{ compact ? className || '星焰作业板' : titleText }}</span>
+      </span>
     </v-app-bar-title>
 
     <v-spacer />
@@ -550,7 +553,7 @@ import BoardSkeleton from '@/components/skeleton/BoardSkeleton.vue'
 import ExamConfigDialog from '@/components/home/ExamConfigDialog.vue'
 import { consumeSettingsDirty } from '@/lib/settingsDirty'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
-import { isMobileUi } from '@/lib/deviceMode'
+import { deviceMode, isMobileUi } from '@/lib/deviceMode'
 import { isDesktop, toggleFullscreen as platformToggleFullscreen } from '@/lib/platform'
 import { readBellOffsetConfig } from '@/lib/bellOffset'
 import {
@@ -628,6 +631,12 @@ const isMobile = ref(false)
 // 浏览器窗口变窄时 isMobile（设备模式判定）不一定为 true，头部另按 Vuetify 断点收敛
 const { smAndDown } = useDisplay()
 const compact = computed(() => isMobile.value || smAndDown.value)
+
+/**
+ * 顶栏左侧品牌行「星焰作业板」：只在桌面模式与一体机模式下显示，
+ * 手机/平板布局顶栏空间紧张，不显示。
+ */
+const showBrandLine = computed(() => deviceMode.value === 'desktop' || deviceMode.value === 'terminal')
 const pwaPrompt = ref<{ prompt: () => Promise<void> } | null>(null)
 const highlightedCards = ref<Record<string, boolean>>({})
 const snack = reactive({ show: false, text: '', color: 'success' })
@@ -1628,6 +1637,28 @@ onBeforeUnmount(() => {
   font-size: 17px!important;
   font-weight: 700!important;
   letter-spacing: 0!important;
+}
+
+.board-headings {
+  min-width: 0;
+  /* 必须是 inline-flex：display:flex 会变成块级元素把 logo 挤到上一行 */
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.1;
+}
+
+/* 品牌行：桌面 / 一体机模式下显示在「今天的作业」上方 */
+.board-overline {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: .14em;
+  color: var(--brand-2, #f4511e);
+  opacity: .85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .board-heading {
