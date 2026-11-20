@@ -13,9 +13,7 @@
     </h2>
     <h2>
       <span style="white-space: nowrap">实到</span>:
-      <span style="white-space: nowrap">
-        {{ studentList.length - attendance.absent - attendance.lateCount - attendance.excluded }}人
-      </span>
+      <span style="white-space: nowrap">{{ presentCount }}人</span>
     </h2>
     <h2>
       <span style="white-space: nowrap">请假</span>:
@@ -35,7 +33,9 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue'
+
+const props = withDefaults(
   defineProps<{
     studentList: Array<{ id: string; name: string }>
     attendance: {
@@ -46,9 +46,20 @@ withDefaults(
       lateNames: string[]
     }
     isEditingDisabled?: boolean
+    /** 迟到学生是否计入实到（班级设置 display.lateStudentsArePresent） */
+    lateIsPresent?: boolean
   }>(),
-  { isEditingDisabled: false },
+  { isEditingDisabled: false, lateIsPresent: false },
 )
+
+/** 实到：应到 - 请假 - 不参与；迟到是否扣减由班级设置决定 */
+const presentCount = computed(() => {
+  const late = props.lateIsPresent ? 0 : props.attendance.lateCount
+  return Math.max(
+    0,
+    props.studentList.length - props.attendance.absent - props.attendance.excluded - late,
+  )
+})
 
 const emit = defineEmits<{ click: [] }>()
 

@@ -1,5 +1,13 @@
 <template>
-  <div ref="gridContainer" class="grid-masonry">
+  <div
+    ref="gridContainer"
+    :class="{
+      'grid-masonry': true,
+      'no-card-hover': !cardHoverEffect,
+      'enhanced-touch': enhancedTouch,
+      'fixed-rows': !dynamicSort,
+    }"
+  >
     <TransitionGroup name="grid">
       <div
         v-for="item in sortedItems"
@@ -208,6 +216,12 @@ const props = withDefaults(
     exams?: ExamItem[]
     subjects?: SubjectInfo[]
     unusedCustom?: Array<{ id: string; title: string }>
+    /** 鼠标悬停时卡片上浮 */
+    cardHoverEffect?: boolean
+    /** 为触摸屏放大点击区域 */
+    enhancedTouch?: boolean
+    /** 按内容高度自动调整卡片（关闭后按固定行高排列） */
+    dynamicSort?: boolean
   }>(),
   {
     emptySubjectDisplay: 'card',
@@ -222,6 +236,9 @@ const props = withDefaults(
     exams: () => [],
     subjects: () => [],
     unusedCustom: () => [],
+    cardHoverEffect: true,
+    enhancedTouch: true,
+    dynamicSort: true,
   },
 )
 
@@ -280,6 +297,12 @@ const GRID_ROW_GAP = 16
 function resizeGridItem(item: HTMLElement): void {
   const grid = gridContainer.value
   if (!grid) return
+
+  // 关闭「按内容高度自动调整卡片顺序」时按固定行高排列，不做跨度测量
+  if (!props.dynamicSort) {
+    if (item.style.gridRowEnd) item.style.gridRowEnd = ''
+    return
+  }
 
   const style = window.getComputedStyle(grid)
   const rowHeight = parseFloat(style.getPropertyValue('grid-auto-rows')) || 1

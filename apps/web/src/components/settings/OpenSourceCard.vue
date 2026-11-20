@@ -3,6 +3,7 @@
     <div class="opensource-body">
       <div class="d-flex align-center" style="gap: 8px">
         <v-icon icon="mdi-github" size="22" />
+        <gitee-icon :size="20" />
         <span class="font-weight-medium">源代码已公开在 GitHub 与 Gitee</span>
       </div>
       <p class="opensource-text">
@@ -24,11 +25,13 @@
         <v-btn
           append-icon="mdi-open-in-new"
           :href="GITEE_REPO_URL"
-          prepend-icon="mdi-source-repository"
           rel="noopener noreferrer"
           target="_blank"
           variant="tonal"
         >
+          <template #prepend>
+            <gitee-icon class="mr-2" :size="18" />
+          </template>
           Gitee 仓库
         </v-btn>
         <v-btn
@@ -44,7 +47,7 @@
       </div>
 
       <div class="text-caption text-medium-emphasis">
-        Gitee 仓库需登录后访问（仓库正在办理转公开）；安装包归档以 GitHub Releases 为准。
+        GitHub 与 Gitee 均为公开仓库；安装包归档以 GitHub Releases 为准。
       </div>
     </div>
   </settings-card>
@@ -52,6 +55,7 @@
 
 <script setup lang="ts">
 import SettingsCard from '@/components/settings/SettingsCard.vue'
+import GiteeIcon from '@/components/GiteeIcon.vue'
 import { GITHUB_RELEASES_URL, GITHUB_REPO_URL, GITEE_REPO_URL } from '@/lib/repoLinks'
 </script>
 

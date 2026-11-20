@@ -41,6 +41,29 @@
   }
 }
 
+// 关闭「鼠标悬停时卡片上浮」（display.cardHoverEffect）
+.grid-masonry.no-card-hover .grid-item .v-card {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+// 关闭「按内容高度自动调整卡片顺序」（display.dynamicSort）：
+// 恢复固定行高，所有卡片按内容最小高度排列
+.grid-masonry.fixed-rows {
+  grid-auto-rows: minmax(min-content, auto) !important;
+}
+
+// 打开「为触摸屏优化点击区域」（display.enhancedTouchMode）：
+// 放大卡片内可点击元素的命中范围
+.grid-masonry.enhanced-touch .grid-item .v-card {
+  min-height: 56px;
+}
+
+.grid-masonry.enhanced-touch .empty-buttons .empty-btn {
+  min-height: 48px;
+  padding-inline: 26px;
+}
+
 .empty-card {
   transform: scale(0.9);
   opacity: 0.8;

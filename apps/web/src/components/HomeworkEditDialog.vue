@@ -186,6 +186,8 @@ const props = withDefaults(
     manualSavePromptText?: string
     showQuickTools?: boolean
     showPasteButtons?: boolean
+    /** 修改历史作业时不自动保存（必须点「保存」） */
+    blockPastAutoSave?: boolean
   }>(),
   {
     title: '编辑作业',
@@ -199,6 +201,7 @@ const props = withDefaults(
     manualSavePromptText: '修改后请点击保存',
     showQuickTools: true,
     showPasteButtons: false,
+    blockPastAutoSave: true,
   },
 )
 
@@ -504,11 +507,19 @@ function handleSave(): void {
   visible.value = false
 }
 
-/** 关闭：自动保存模式下也仅在变化时提交 */
+/**
+ * 关闭弹窗：
+ * - 开启「关闭编辑弹窗时自动保存」时，内容有变化就提交；
+ * - 修改的是历史作业且「历史数据必须手动确认」开启时，不自动提交，直接放弃本次修改；
+ * - 未开启自动保存时，关闭即放弃修改（必须点「保存」按钮才提交）。
+ */
 function handleClose(): void {
   const next = trimmed()
-  if (next !== props.initialContent.trim()) {
+  const changed = next !== props.initialContent.trim()
+  if (changed && props.autoSave && !(props.isEditingPastData && props.blockPastAutoSave)) {
     emit('save', next)
+    visible.value = false
+    return
   }
   visible.value = false
 }

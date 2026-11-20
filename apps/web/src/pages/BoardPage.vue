@@ -261,10 +261,12 @@
 
       <home-actions
         :is-fullscreen="isFullscreen"
-        :show-exam-schedule-button="true"
-        :show-fullscreen-button="true"
-        :show-list-card-button="true"
+        :show-anti-screen-burn-card="showAntiBurnCardSetting"
+        :show-exam-schedule-button="showExamButtonSetting"
+        :show-fullscreen-button="showFullscreenButtonSetting"
+        :show-list-card-button="showListCardSetting"
         :show-random-picker-button="randomPickerEnabled"
+        :show-transfer-button="true"
         :synced="!board.loading"
         @open-exam-picker="examPickerOpen = true"
         @open-list="go('list')"
@@ -273,7 +275,7 @@
         @toggle-fullscreen="toggleFullscreen"
       />
 
-      <pwa-install-card v-if="!isDesktop" />
+      <pwa-install-card v-if="!isDesktop && !hidePwaCardSetting" />
     </v-container>
   </template>
 
@@ -303,9 +305,12 @@
       </div>
 
       <homework-grid
+        :card-hover-effect="cardHoverSetting"
         :clock12h="clock12h"
         :content-style="contentStyle"
+        :dynamic-sort="dynamicSortSetting"
         :empty-subject-display="emptySubjectDisplay"
+        :enhanced-touch="enhancedTouchSetting"
         :exams="board.exams"
         :font-scale="fontScale / 28"
         :highlighted-cards="highlightedCards"
@@ -324,10 +329,12 @@
 
       <home-actions
         :is-fullscreen="isFullscreen"
-        :show-exam-schedule-button="true"
-        :show-fullscreen-button="true"
-        :show-list-card-button="true"
+        :show-anti-screen-burn-card="showAntiBurnCardSetting"
+        :show-exam-schedule-button="showExamButtonSetting"
+        :show-fullscreen-button="showFullscreenButtonSetting"
+        :show-list-card-button="showListCardSetting"
         :show-random-picker-button="randomPickerEnabled"
+        :show-transfer-button="true"
         :synced="!board.loading"
         @open-exam-picker="examPickerOpen = true"
         @open-list="go('list')"
@@ -336,13 +343,14 @@
         @toggle-fullscreen="toggleFullscreen"
       />
 
-      <pwa-install-card v-if="!isDesktop" />
+      <pwa-install-card v-if="!isDesktop && !hidePwaCardSetting" />
     </v-container>
 
     <attendance-sidebar
       v-if="!isMobile && showAttendance"
       :attendance="attendance"
       :is-editing-disabled="board.loading"
+      :late-is-present="lateIsPresentSetting"
       :student-list="board.students"
       @click="attDialogOpen = true"
     />
@@ -352,14 +360,16 @@
   <homework-edit-dialog
     ref="editorRef"
     v-model="editorOpen"
+    :auto-save="autoSaveSetting"
     :auto-save-prompt-text="autoSavePromptText"
+    :block-past-auto-save="blockNonTodayAutoSaveSetting"
     :initial-content="editorContent"
     :is-editing-past-data="!isToday"
     :current-date-string="board.date"
     :is-mobile="isMobile"
     :manual-save-prompt-text="manualSavePromptText"
-    :show-paste-buttons="isMobile"
-    :show-quick-tools="settings.showQuickTools !== false"
+    :show-paste-buttons="showPasteButtonsSetting"
+    :show-quick-tools="showQuickToolsSetting"
     :template-data="homeworkTemplate"
     :title="editorTitle"
     @save="saveHomework"
@@ -388,8 +398,14 @@
   <random-picker
     v-model="randomOpen"
     :attendance="attendanceStatus"
-    :default-exclude-absent="settings.randomExcludeAbsent !== false"
-    :default-name-mode="settings.randomNameMode !== false"
+    :default-count="randomDefaultCountSetting"
+    :default-exclude-absent="randomExcludeAbsentDefault"
+    :default-exclude-excluded="randomExcludeExcludedSetting"
+    :default-exclude-late="randomExcludeLateSetting"
+    :default-mode="randomPickerModeSetting"
+    :max-number="randomMaxNumberSetting"
+    :min-number="randomMinNumberSetting"
+    :spin-animation="randomAnimationSetting"
     :students="board.students"
   />
 
@@ -534,6 +550,15 @@ import { consumeSettingsDirty } from '@/lib/settingsDirty'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { isMobileUi } from '@/lib/deviceMode'
 import { isDesktop, toggleFullscreen as platformToggleFullscreen } from '@/lib/platform'
+import {
+  backgroundSetting,
+  boolSetting,
+  fontSizeSetting,
+  intSetting,
+  randomExcludeAbsentSetting as readRandomExcludeAbsent,
+  randomModeSetting as readRandomMode,
+  stringSetting,
+} from '@/lib/settingsCompat'
 
 const session = useSessionStore()
 
@@ -821,7 +846,10 @@ const wallNotices = computed(() =>
 const className = computed(() => session.classInfo?.name ?? '')
 const isReadOnly = computed(() => Boolean(session.device?.isReadOnly))
 // 随机点名入口常显：只有班级设置里明确关闭时才隐藏（花名册为空时由弹窗内部提示）
-const randomPickerEnabled = computed(() => settings.value.showRandomPicker !== false)
+const randomPickerFeature = computed(() => boolSetting(settings.value, 'randomPicker.enabled', true))
+const randomPickerEnabled = computed(
+  () => randomPickerFeature.value && boolSetting(settings.value, 'display.showRandomButton', true),
+)
 const studentNames = computed(() => board.students.map((item) => item.name))
 
 const settings = computed(() => (board.data?.settings ?? {}) as Record<string, unknown>)
@@ -846,8 +874,84 @@ function syncIsMobile(): void {
 
 watch([isMobileUi, () => settings.value['display.forceDesktopMode']], syncIsMobile, { immediate: true })
 const clock12h = computed(() => Boolean(settings.value.clock12h))
-const emptySubjectDisplay = computed(() => String(settings.value.emptySubjectDisplay ?? 'button'))
-const fontScale = computed(() => Number(settings.value.fontScale ?? 1) * 28)
+const emptySubjectDisplay = computed(() =>
+  stringSetting(settings.value, 'display.emptySubjectDisplay', 'button'),
+)
+// 正文字号：设置页的 font.size 优先，旧键 fontScale（相对 28px 的倍数）兜底
+const settingFontSize = computed(() => fontSizeSetting(settings.value))
+const fontScale = computed(() => settingFontSize.value)
+
+/** 云端字号只在首次拿到班级设置时套用一次，之后用户用浮动工具栏缩放的结果（本机）优先 */
+const fontSizeAppliedFromSettings = ref(false)
+watch(
+  settingFontSize,
+  (value) => {
+    if (fontSizeAppliedFromSettings.value || !board.data) return
+    fontSizeAppliedFromSettings.value = true
+    // 只有班级明确配置了非默认字号时才覆盖本机缩放记忆
+    if (value === FONT_SIZE_DEFAULT) return
+    const next = clampFontSize(value)
+    if (next !== fontSize.value) fontSize.value = next
+  },
+  { immediate: true },
+)
+
+// ---------- 显示类设置 ----------
+const showTimeCardSetting = computed(() => boolSetting(settings.value, 'timeCard.enabled', true))
+const showHitokotoSetting = computed(() => boolSetting(settings.value, 'hitokoto.enabled', true))
+const showRandomButtonSetting = computed(() =>
+  boolSetting(settings.value, 'display.showRandomButton', true),
+)
+const showFullscreenButtonSetting = computed(() =>
+  boolSetting(settings.value, 'display.showFullscreenButton', true),
+)
+const showExamButtonSetting = computed(() =>
+  boolSetting(settings.value, 'display.showExamScheduleButton', true),
+)
+const showListCardSetting = computed(() => boolSetting(settings.value, 'display.showListCard', true))
+const showAntiBurnCardSetting = computed(() =>
+  boolSetting(settings.value, 'display.showAntiScreenBurnCard', true),
+)
+const showQuickToolsSetting = computed(() =>
+  boolSetting(settings.value, 'display.showQuickTools', true),
+)
+const showPasteButtonsSetting = computed(() =>
+  boolSetting(settings.value, 'display.showPasteButtons', true),
+)
+const dynamicSortSetting = computed(() => boolSetting(settings.value, 'display.dynamicSort', true))
+const cardHoverSetting = computed(() =>
+  boolSetting(settings.value, 'display.cardHoverEffect', true),
+)
+const enhancedTouchSetting = computed(() =>
+  boolSetting(settings.value, 'display.enhancedTouchMode', true),
+)
+const hidePwaCardSetting = computed(() => boolSetting(settings.value, 'pwa.hideInstallCard', false))
+/** 迟到学生是否计入「实到」 */
+const lateIsPresentSetting = computed(() =>
+  boolSetting(settings.value, 'display.lateStudentsArePresent', false),
+)
+
+// ---------- 随机点名设置 ----------
+const randomPickerModeSetting = computed(() => readRandomMode(settings.value))
+const randomExcludeAbsentDefault = computed(() => readRandomExcludeAbsent(settings.value))
+const randomExcludeExcludedSetting = computed(() =>
+  boolSetting(settings.value, 'randomPicker.excludeExcluded', true),
+)
+const randomDefaultCountSetting = computed(() =>
+  intSetting(settings.value, 'randomPicker.defaultCount', 1, 1, 20),
+)
+const randomMinNumberSetting = computed(() =>
+  intSetting(settings.value, 'randomPicker.minNumber', 1, 1, 99),
+)
+const randomMaxNumberSetting = computed(() =>
+  intSetting(settings.value, 'randomPicker.maxNumber', 60, 1, 200),
+)
+const randomExcludeLateSetting = computed(() =>
+  boolSetting(settings.value, 'randomPicker.excludeLate', false),
+)
+const randomAnimationSetting = computed(() =>
+  boolSetting(settings.value, 'randomPicker.animation', true),
+)
 
 // 手机屏幕窄，按比例缩小作业字号（桌面/大屏保持用户设定值）
 const mobileFontScale = 0.62
@@ -877,12 +981,8 @@ const weeklySchedule = computed<
 })
 
 // 背景设置（图片 + 模糊 + 遮罩）
-const bg = computed(() => ({
-  enabled: Boolean(settings.value.bgEnabled),
-  url: String(settings.value.bgUrl ?? ''),
-  blur: Number(settings.value.bgBlur ?? 10),
-  opacity: Number(settings.value.bgOpacity ?? 40),
-}))
+// 背景：新键 background.* 优先，旧键 bgEnabled/bgUrl/… 兜底
+const bg = computed(() => backgroundSetting(settings.value))
 
 const bgImageStyle = computed(() => ({
   backgroundImage: 'url(' + bg.value.url + ')',
@@ -899,11 +999,27 @@ const homeworkTemplate = computed(() => {
   return raw && typeof raw === 'object' ? (raw as Record<string, never>) : null
 })
 
+// ---------- 作业编辑相关设置 ----------
+const autoSaveSetting = computed(() => boolSetting(settings.value, 'edit.autoSave', false))
+const blockNonTodayAutoSaveSetting = computed(() =>
+  boolSetting(settings.value, 'edit.blockNonTodayAutoSave', true),
+)
+const confirmNonTodaySaveSetting = computed(() =>
+  boolSetting(settings.value, 'edit.confirmNonTodaySave', true),
+)
+const blockPastDataEditSetting = computed(() =>
+  boolSetting(settings.value, 'edit.blockPastDataEdit', false),
+)
+// 修改历史作业前先重新拉取，避免覆盖其他设备刚保存的内容
+const refreshBeforeEditSetting = computed(() =>
+  boolSetting(settings.value, 'edit.refreshBeforeEdit', true),
+)
+
 const autoSavePromptText = computed(() =>
-  String(settings.value.autoSavePromptText ?? '内容会自动保存，关闭对话框即生效'),
+  stringSetting(settings.value, 'edit.autoSavePromptText', '内容会自动保存，关闭对话框即生效'),
 )
 const manualSavePromptText = computed(() =>
-  String(settings.value.manualSavePromptText ?? '修改后请点击保存'),
+  stringSetting(settings.value, 'edit.manualSavePromptText', '修改后请点击保存'),
 )
 
 function formatDate(d: Date): string {
@@ -994,10 +1110,10 @@ const sortedItems = computed<GridItem[]>(() => {
     })
   }
 
-  if (settings.value.showTime !== false) {
+  if (showTimeCardSetting.value) {
     items.push({ key: 'time-card', name: '时间', type: 'time', order: 9997 })
   }
-  if (settings.value.showHitokoto !== false) {
+  if (showHitokotoSetting.value) {
     items.push({ key: 'hitokoto-card', name: '一言', type: 'hitokoto', order: 9998 })
   }
 
@@ -1112,16 +1228,26 @@ const wallCards = computed(() => {
   return cards.sort((a, b) => a.order - b.order)
 })
 
-const showTime = computed(() => settings.value.showTime !== false)
-const showAttendance = computed(() => settings.value['display.showAttendance'] === true)
-const showHitokoto = computed(() => settings.value.showHitokoto !== false)
-const wallPresent = computed(() =>
-  Math.max(0, board.students.length - attendance.value.absent - attendance.value.excluded),
-)
+const showTime = computed(() => showTimeCardSetting.value)
+const showAttendance = computed(() => boolSetting(settings.value, 'display.showAttendance', false))
+const showHitokoto = computed(() => showHitokotoSetting.value)
+const wallPresent = computed(() => {
+  const late = lateIsPresentSetting.value ? 0 : attendance.value.lateCount
+  return Math.max(0, board.students.length - attendance.value.absent - attendance.value.excluded - late)
+})
 
-function openEditorById(key: string): void {
+async function openEditorById(key: string): Promise<void> {
   if (isReadOnly.value) {
     notify('当前设备为只读模式', 'warning')
+    return
+  }
+  // 「修改前先刷新」：先拉一次最新数据，避免用过期的版本覆盖其他设备的修改
+  if (refreshBeforeEditSetting.value && board.loaded && !board.loading) {
+    await board.refresh()
+  }
+  // 「只能修改当天的作业」：历史日期直接拒绝
+  if (!isToday.value && blockPastDataEditSetting.value) {
+    notify('班级设置只允许修改当天的作业，历史数据不可编辑', 'warning')
     return
   }
 
@@ -1169,6 +1295,16 @@ async function addCustomCard(): Promise<void> {
 async function saveHomework(content: string): Promise<void> {
   if (!editorSubjectId.value) return
   const next = content.trim()
+
+  // 修改历史作业时二次确认（班级设置「修改历史作业时弹确认框」）
+  if (
+    !isToday.value &&
+    confirmNonTodaySaveSetting.value &&
+    next !== editorContent.value.trim() &&
+    !window.confirm('即将修改 ' + board.date + ' 的历史作业，确定要保存吗？')
+  ) {
+    return
+  }
 
   // 空内容且原本也空：直接关闭，不发请求
   if (!next && !editorContent.value.trim()) {

@@ -32,6 +32,7 @@
               </a>
               <span class="text-medium-emphasis mx-1">·</span>
               <a class="about-link" :href="GITEE_REPO_URL" rel="noopener noreferrer" target="_blank">
+                <gitee-icon class="mr-1" :size="14" />
                 <b>Gitee</b>
                 <v-icon icon="mdi-open-in-new" size="12" />
               </a>
@@ -119,6 +120,7 @@ import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
 
 import { useSessionStore } from '@/stores/session'
 import { apiBase } from '@/lib/api'
+import GiteeIcon from '@/components/GiteeIcon.vue'
 import { GITHUB_REPO_URL, GITEE_REPO_URL } from '@/lib/repoLinks'
 import {
   DEVICE_MODE_LABEL,
