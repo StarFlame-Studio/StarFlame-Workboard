@@ -96,6 +96,7 @@
           </span>
         </template>
         <template #item.actions="{ item }">
+          <v-btn size="small" variant="text" @click="openDetail(item)">详情</v-btn>
           <v-btn color="error" size="small" variant="text" @click="askRevoke(item)">吊销</v-btn>
         </template>
         <template #no-data>
@@ -125,6 +126,79 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="detailOpen" max-width="560">
+      <v-card v-if="detailTarget">
+        <v-card-title class="detail-title">
+          <v-icon icon="mdi-monitor-dashboard" size="22" class="mr-2" />
+          设备详情
+          <v-spacer />
+          <v-chip :color="detailTarget.online ? 'success' : 'default'" size="small" variant="tonal">
+            {{ detailTarget.online ? '在线' : '离线' }}
+          </v-chip>
+        </v-card-title>
+        <v-card-text>
+          <div class="detail-section-title">基本信息</div>
+          <div class="detail-grid">
+            <div class="detail-label">设备名称</div>
+            <div class="detail-value">{{ detailTarget.name }}</div>
+            <div class="detail-label">所属班级</div>
+            <div class="detail-value">{{ detailTarget.className || '未绑定班级' }}</div>
+            <div class="detail-label">设备身份</div>
+            <div class="detail-value">{{ roleLabel(detailTarget.role) }}</div>
+            <div class="detail-label">设备权限</div>
+            <div class="detail-value">{{ detailTarget.isReadOnly ? '只读' : '可写' }}</div>
+            <div class="detail-label">设备标识</div>
+            <div class="detail-value detail-mono">{{ detailTarget.uuid }}</div>
+            <div class="detail-label">创建时间</div>
+            <div class="detail-value">{{ detailTarget.createdAt ? formatDate(detailTarget.createdAt) : '-' }}</div>
+            <div class="detail-label">最近心跳</div>
+            <div class="detail-value">
+              {{ lastSeenText(detailTarget.lastSeenAt) }}
+              <span v-if="detailTarget.lastSeenAt" class="detail-sub">{{ formatDate(detailTarget.lastSeenAt) }}</span>
+            </div>
+          </div>
+
+          <div class="detail-section-title mt-4">运行环境</div>
+          <div class="detail-grid">
+            <div class="detail-label">运行平台</div>
+            <div class="detail-value">
+              {{ uaInfo.platform }}
+              <span v-if="uaInfo.platformVersion" class="detail-sub">{{ uaInfo.platformVersion }}</span>
+            </div>
+            <div class="detail-label">运行形态</div>
+            <div class="detail-value">{{ uaInfo.runtime }}</div>
+            <div class="detail-label">客户端版本</div>
+            <div class="detail-value">{{ uaInfo.version ? 'v' + uaInfo.version : '未上报' }}</div>
+            <div class="detail-label">运行内核</div>
+            <div class="detail-value">{{ uaInfo.engine || '未上报' }}</div>
+            <div class="detail-label">IP 地址</div>
+            <div class="detail-value detail-mono">{{ detailTarget.lastIp || '未记录' }}</div>
+          </div>
+
+          <v-expansion-panels class="mt-4" variant="accordion">
+            <v-expansion-panel title="原始 User-Agent">
+              <v-expansion-panel-text>
+                <div class="detail-ua">{{ uaInfo.raw || '未上报' }}</div>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            v-if="uaInfo.raw"
+            prepend-icon="mdi-content-copy"
+            size="small"
+            variant="text"
+            @click="copyUa"
+          >
+            复制 UA
+          </v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="detailOpen = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snack.show" :color="snack.color" timeout="2600">{{ snack.text }}</v-snackbar>
   </div>
 </template>
@@ -135,6 +209,7 @@ import { useDisplay } from 'vuetify'
 import { DEVICE_ROLE_LABEL, type DeviceRole } from '@starflame/shared'
 import { deleteData, getData, postData } from '@/lib/api'
 import SfTableSkeleton from '@/components/skeleton/SfTableSkeleton.vue'
+import { parseUserAgent } from '@/lib/uaInfo'
 
 interface DeviceRow {
   id: string
@@ -143,7 +218,10 @@ interface DeviceRow {
   className: string | null
   role: DeviceRole
   isReadOnly: boolean
+  userAgent: string | null
+  lastIp: string | null
   lastSeenAt: string | null
+  createdAt: string | null
   online: boolean
 }
 
@@ -345,6 +423,29 @@ async function doRevoke(): Promise<void> {
     revoking.value = false
   }
 }
+
+// ---------- 设备详情 ----------
+const detailOpen = ref(false)
+const detailTarget = ref<DeviceRow | null>(null)
+
+/** 平台 / 客户端版本直接从 UA 里解析，服务端不做解析以保持接口轻量 */
+const uaInfo = computed(() => parseUserAgent(detailTarget.value?.userAgent))
+
+function openDetail(item: DeviceRow): void {
+  detailTarget.value = item
+  detailOpen.value = true
+}
+
+async function copyUa(): Promise<void> {
+  const raw = uaInfo.value.raw
+  if (!raw) return
+  try {
+    await navigator.clipboard.writeText(raw)
+    notify('已复制 User-Agent')
+  } catch {
+    notify('复制失败，请手动选中复制', 'error')
+  }
+}
 </script>
 
 <style scoped>
@@ -390,6 +491,46 @@ async function doRevoke(): Promise<void> {
 }
 .status-dot.is-offline {
   background: #bdbdbd;
+}
+.detail-title {
+  display: flex;
+  align-items: center;
+}
+.detail-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-bottom: 8px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 6px 12px;
+  font-size: 14px;
+}
+.detail-label {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.detail-value {
+  word-break: break-all;
+}
+.detail-sub {
+  margin-left: 6px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.detail-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.detail-ua {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 @media (max-width: 600px) {
   .filter-search {
