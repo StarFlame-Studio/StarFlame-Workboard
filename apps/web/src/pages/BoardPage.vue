@@ -1536,7 +1536,7 @@ onMounted(async () => {
   await refreshAttendance()
   handleFreshNotices()
   await applyPendingSettingsRefresh()
-  void session.heartbeat()
+  // 心跳由全局 presence 模块统一维持（页面可见期间每 45 秒一次），这里不再单独发送
   void ensureNoticePermission()
   window.addEventListener('pointerdown', () => { void ensureNoticePermission() }, { once: true })
 

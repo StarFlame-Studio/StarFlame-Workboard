@@ -12,6 +12,7 @@ import UpdateNoticeDialog from '@/components/UpdateNoticeDialog.vue'
 import UpdateProgressDialog from '@/components/UpdateProgressDialog.vue'
 import { initDataSource } from '@/lib/dataSource'
 import { initOffline } from '@/lib/offline'
+import { startPresence } from '@/lib/presence'
 import '@/styles/mdi-subset.css'
 import '@/styles/main.scss'
 
@@ -105,4 +106,14 @@ export function mountPage(PageComponent: Component, options?: { public?: boolean
   }
 
   app.mount('#app')
+
+  // 全站常驻心跳：后台的「在线」判据是最近 3 分钟内有活动，
+  // 只靠看板页挂载时发一次会让休眠/切网/重连后的设备长期显示离线
+  if (!options?.public) {
+    try {
+      startPresence()
+    } catch (err) {
+      console.error('[boot] 心跳启动失败：', err)
+    }
+  }
 }

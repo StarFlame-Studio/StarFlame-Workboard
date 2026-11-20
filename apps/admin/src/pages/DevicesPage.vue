@@ -356,6 +356,13 @@ function onOptions(options: { page: number; itemsPerPage: number }): void {
 /** 在线状态会变，页面打开时每 30 秒静默刷新一次（切到后台就暂停） */
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
+/** 切回前台立刻刷新：轮询在后台标签页里是暂停的，不补一次会看到过期状态 */
+function onVisibilityChange(): void {
+  if (document.visibilityState !== 'visible') return
+  if (loading.value) return
+  void load()
+}
+
 onMounted(() => {
   void load()
   refreshTimer = setInterval(() => {
@@ -363,11 +370,15 @@ onMounted(() => {
     if (loading.value) return
     void load()
   }, 30000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', onVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (searchTimer) clearTimeout(searchTimer)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', onVisibilityChange)
 })
 
 const selected = ref<string[]>([])
