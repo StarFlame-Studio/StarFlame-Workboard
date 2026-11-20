@@ -470,6 +470,7 @@ function applySnapshotMutation(
         content: String(payload.content ?? ''),
         level: payload.level === 'urgent' ? 'urgent' : 'info',
         pinned: Boolean(payload.pinned),
+        popup: payload.popup === undefined ? true : Boolean(payload.popup),
         publishAt: new Date().toISOString(),
         expireAt: (payload.expireAt as string | null) ?? null,
       }

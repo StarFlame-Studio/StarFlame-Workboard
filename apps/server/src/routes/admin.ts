@@ -856,6 +856,7 @@ router.get('/notices', async (req, res, next) => {
         content: notices.content,
         level: notices.level,
         pinned: notices.pinned,
+        popup: notices.popup,
         publishAt: notices.publishAt,
         expireAt: notices.expireAt,
         createdAt: notices.createdAt,
@@ -902,9 +903,11 @@ router.post('/notices/broadcast', writeLimiter, validateBody(noticeBroadcastSche
       content: string
       level: 'info' | 'urgent'
       pinned: boolean
+      popup: boolean
       expireAt?: string | null
     }
     if (!input.title.trim() && !input.content.trim()) throw badRequest('标题与内容不能同时为空')
+    if (!input.pinned && !input.popup) throw badRequest('弹窗提醒与置顶通知至少需要开启一项')
     const targets = await resolveTargetClasses(input.classIds)
     const publishAt = new Date()
     const expireAt = input.expireAt ? new Date(input.expireAt) : null
@@ -919,6 +922,7 @@ router.post('/notices/broadcast', writeLimiter, validateBody(noticeBroadcastSche
         content: input.content,
         level: input.level,
         pinned: input.pinned,
+        popup: input.popup,
         publishAt,
         expireAt,
         createdBy: actorId,
@@ -950,11 +954,14 @@ router.post('/notices/batch', writeLimiter, validateBody(noticeBatchSchema), asy
         content: string
         level: 'info' | 'urgent'
         pinned: boolean
+        popup: boolean
         expireAt?: string | null
       }>
     }
     const filled = input.items.filter((item) => item.title.trim() || item.content.trim())
     if (filled.length === 0) throw badRequest('请至少填写一条通知内容')
+    const invalid = filled.find((item) => !item.pinned && !item.popup)
+    if (invalid) throw badRequest('每条通知的弹窗提醒与置顶通知至少需要开启一项')
     const targets = await resolveTargetClasses(filled.map((item) => item.classId))
     const classNames = new Map(targets.map((row) => [row.id, row.name]))
     const publishAt = new Date()
@@ -969,6 +976,7 @@ router.post('/notices/batch', writeLimiter, validateBody(noticeBatchSchema), asy
         content: item.content,
         level: item.level,
         pinned: item.pinned,
+        popup: item.popup,
         publishAt,
         expireAt: item.expireAt ? new Date(item.expireAt) : null,
         createdBy: actorId,

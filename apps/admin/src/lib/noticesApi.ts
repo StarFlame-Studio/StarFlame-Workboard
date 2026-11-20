@@ -9,6 +9,8 @@ export interface AdminNotice {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  /** 发布时是否弹窗提醒（与 pinned 至少开启一项） */
+  popup: boolean
   publishAt: string
   expireAt: string | null
   createdAt: string
@@ -27,6 +29,7 @@ export interface AdminNoticeInput {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  popup: boolean
   expireAt?: string | null
 }
 

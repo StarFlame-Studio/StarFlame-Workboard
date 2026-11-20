@@ -265,6 +265,8 @@ export const notices = mysqlTable(
     content: text('content'),
     level: mysqlEnum('level', ['info', 'urgent']).notNull().default('info'),
     pinned: boolean('pinned').notNull().default(false),
+    /** 发布时是否在大屏弹窗提醒（与 pinned 至少开启一项） */
+    popup: boolean('popup').notNull().default(true),
     publishAt: timestamp('publish_at', { fsp: 3 }).notNull().default(currentTimestamp()),
     expireAt: datetime('expire_at', { fsp: 3 }),
     createdBy: char('created_by', { length: 26 }),

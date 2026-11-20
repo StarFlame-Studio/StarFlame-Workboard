@@ -61,6 +61,8 @@ export interface Notice {
   content: string
   level: 'info' | 'urgent'
   pinned: boolean
+  /** 发布时是否弹窗提醒 */
+  popup: boolean
   publishAt?: string
   expireAt?: string | null
   readAt?: string | null
