@@ -99,6 +99,10 @@ const KEY_LABELS: Record<string, string> = {
   'randomPicker.enabled': '随机点名',
   examCardIds: '考试卡片',
   'schedule.weekly': '作息时间',
+  'schedule.periods': '课程时间段',
+  'schedule.bellOffset': '课铃偏移时间',
+  'schedule.bellOffsetAuto': '每天自动调整课铃偏移',
+  'schedule.bellOffsets': '每天的课铃偏移',
   homeworkTemplate: '作业模板',
   // 旧扁平键：历史备份文件里仍可能出现
   'fontScale': '字体缩放',

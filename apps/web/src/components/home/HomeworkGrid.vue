@@ -18,7 +18,7 @@
         class="grid-item"
       >
         <div v-if="item.type === 'time'" class="grid-item-inner">
-          <time-card :use12h="clock12h" :weekly="weekly" />
+          <time-card :bell="bell" :use12h="clock12h" :weekly="weekly" />
         </div>
 
         <div v-else-if="item.type === 'hitokoto'" class="grid-item-inner">
@@ -199,6 +199,7 @@ import HitokotoCard from '@/components/HitokotoCard.vue'
 import ConciseExamCard from '@/components/home/ConciseExamCard.vue'
 
 import type { GridItem } from '@/types/board'
+import type { BellOffsetConfig } from '@/lib/bellOffset'
 
 const props = withDefaults(
   defineProps<{
@@ -222,6 +223,8 @@ const props = withDefaults(
     enhancedTouch?: boolean
     /** 按内容高度自动调整卡片（关闭后按固定行高排列） */
     dynamicSort?: boolean
+    /** 课铃偏移：只影响时间卡的放学倒计时 */
+    bell?: BellOffsetConfig
   }>(),
   {
     emptySubjectDisplay: 'card',
@@ -239,6 +242,7 @@ const props = withDefaults(
     cardHoverEffect: true,
     enhancedTouch: true,
     dynamicSort: true,
+    bell: () => ({ auto: false, global: 0, days: {} }),
   },
 )
 

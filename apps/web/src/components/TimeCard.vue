@@ -29,6 +29,11 @@
             <span class="font-weight-bold">{{ school.percent }}%</span>
             <span>{{ school.endText }}</span>
           </div>
+          <!-- 课铃偏移提示：时间文字仍是作息原值，倒计时已按课铃提前/延后 -->
+          <div v-if="school.bellHint" class="school-bell-hint">
+            <v-icon size="12">mdi-bell-ring</v-icon>
+            <span>课铃{{ school.bellHint }}</span>
+          </div>
 
         </template>
 
@@ -63,6 +68,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TimeCardFullscreen from '@/components/TimeCardFullscreen.vue'
 import { serverNow, startTimeSync } from '@/lib/serverTime'
+import { bellOffsetForDate, describeBellOffset, type BellOffsetConfig } from '@/lib/bellOffset'
 import {
   formatBadge,
   formatClock,
@@ -82,8 +88,10 @@ const props = withDefaults(
   defineProps<{
     use12h?: boolean
     weekly?: Record<string, DaySchedule | null>
+    /** 课铃偏移：只调整「距离放学」倒计时，时钟与作息时间文字保持原样 */
+    bell?: BellOffsetConfig
   }>(),
-  { use12h: false, weekly: () => ({}) },
+  { use12h: false, weekly: () => ({}), bell: () => ({ auto: false, global: 0, days: {} }) },
 )
 
 const now = ref(new Date())
@@ -180,6 +188,7 @@ const school = computed(() => {
     endText: '',
     color: 'primary',
     hasBoarding: false,
+    bellHint: '',
   }
 
   const dayKey = DAY_KEYS[now.value.getDay()] ?? 'mon'
@@ -192,7 +201,11 @@ const school = computed(() => {
 
   const d = now.value
   const startAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startT.h, startT.m, 0, 0)
+
+  /** 课铃偏移（分钟）：正数提前，负数延后；只影响倒计时的终点，时间文字仍显示作息原值 */
+  const bellOffset = bellOffsetForDate(props.bell, d)
   const dayEndAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), endT.h, endT.m, 0, 0)
+  dayEndAt.setMinutes(dayEndAt.getMinutes() - bellOffset)
 
   // 住宿生放学：只有晚于走读放学时间时才作为第二阶段
   const boardingT = day.endBoarding ? parseTime(day.endBoarding) : null
@@ -209,6 +222,8 @@ const school = computed(() => {
         0,
       )
     : null
+  // 住宿生放学同样跟随课铃偏移
+  if (boardEndAt) boardEndAt.setMinutes(boardEndAt.getMinutes() - bellOffset)
 
   const t = d.getTime()
   const startMs = startAt.getTime()
@@ -256,7 +271,9 @@ const school = computed(() => {
     }
   }
 
-  return { enabled: true, label, countdown, percent, startText, endText, color, hasBoarding }
+  // 「提前 5 分钟」这类提示，无偏移时不显示
+  const bellHint = bellOffset ? describeBellOffset(bellOffset) : ''
+  return { enabled: true, label, countdown, percent, startText, endText, color, hasBoarding, bellHint }
 })
 
 function formatDuration(ms: number): string {
@@ -477,6 +494,15 @@ onBeforeUnmount(() => {
 
 .school-meta span {
   white-space: nowrap;
+}
+
+.school-bell-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: clamp(0.52rem, 2.1cqw, 0.66rem);
+  color: rgba(var(--v-theme-warning), 0.9);
+  opacity: 0.9;
 }
 
 

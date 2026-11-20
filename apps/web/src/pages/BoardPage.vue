@@ -158,6 +158,7 @@
           <time-card
             v-if="showTime"
             class="wall-rail-time"
+            :bell="bellOffsetConfig"
             :use12h="clock12h"
             :weekly="weeklySchedule"
           />
@@ -305,6 +306,7 @@
       </div>
 
       <homework-grid
+        :bell="bellOffsetConfig"
         :card-hover-effect="cardHoverSetting"
         :clock12h="clock12h"
         :content-style="contentStyle"
@@ -550,6 +552,7 @@ import { consumeSettingsDirty } from '@/lib/settingsDirty'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { isMobileUi } from '@/lib/deviceMode'
 import { isDesktop, toggleFullscreen as platformToggleFullscreen } from '@/lib/platform'
+import { readBellOffsetConfig } from '@/lib/bellOffset'
 import {
   backgroundSetting,
   boolSetting,
@@ -970,6 +973,9 @@ function onToggleTheme(event: MouseEvent | KeyboardEvent): void {
   const next = toggleTheme(point)
   themeMode.value = next
 }
+
+// 课铃偏移：时间卡的时钟与作息文字不变，只有放学倒计时跟随课铃提前/延后
+const bellOffsetConfig = computed(() => readBellOffsetConfig(settings.value))
 
 const weeklySchedule = computed<
   Record<string, { start: string; end: string; endBoarding?: string | null } | null>
