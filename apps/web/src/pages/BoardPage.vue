@@ -1044,6 +1044,23 @@ function formatDate(d: Date): string {
   return yyyy + mm + dd
 }
 
+/**
+ * 把 Date 转成本机日历日期字符串 yyyy-mm-dd。
+ * 不能用 toISOString()：那是 UTC 日期，东八区 00:00 会被算成前一天，
+ * 跨时区/夏令时切换时会让「上一天/下一天」跳到错误日期甚至原地不动。
+ */
+function toDateString(d: Date): string {
+  const raw = formatDate(d)
+  return raw.slice(0, 4) + '-' + raw.slice(4, 6) + '-' + raw.slice(6, 8)
+}
+
+/** 解析 yyyy-mm-dd（按本机日历零点），非法时回退到今天 */
+function parseDateString(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return new Date()
+}
+
 const isToday = computed(() => board.date.replace(/-/g, '') === formatDate(new Date()))
 
 const titleText = computed(() => {
@@ -1383,26 +1400,45 @@ async function refreshAttendance(): Promise<void> {
   }
 }
 
+async function switchDate(target: string): Promise<void> {
+  // 同一天重复点击不必再发请求，避免离线模式下来回空转
+  if (!target || target === board.date) return
+  await board.refresh(target)
+  if (board.error) {
+    notify('切换到 ' + target + ' 失败：' + board.error, 'error')
+    return
+  }
+  // 出勤数据是按日期取的，切日期后必须重新拉一次，否则统计还停在上一天
+  await refreshAttendance()
+  if (board.date !== target) {
+    // 数据层已尽力保证日期，这里再兜一层，避免界面停在旧日期
+    notify('无法切换到 ' + target, 'warning')
+  }
+}
+
 function shiftDay(delta: number): void {
-  const base = new Date(board.date + 'T00:00:00')
+  const base = parseDateString(board.date)
   base.setDate(base.getDate() + delta)
-  const offset = base.getTimezoneOffset() * 60000
-  void board.refresh(new Date(base.getTime() - offset).toISOString().slice(0, 10))
+  void switchDate(toDateString(base))
 }
 
 function handleDateSelect(value: unknown): void {
-  const raw = value instanceof Date ? value : new Date(String(value))
+  if (value === null || value === undefined) return
+  const raw = value instanceof Date ? value : parseDateString(String(value).slice(0, 10))
   if (Number.isNaN(raw.getTime())) return
-  const offset = raw.getTimezoneOffset() * 60000
-  void board.refresh(new Date(raw.getTime() - offset).toISOString().slice(0, 10))
+  void switchDate(toDateString(raw))
 }
 
 async function copyToToday(): Promise<void> {
-  const today = new Date()
-  const offset = today.getTimezoneOffset() * 60000
-  const target = new Date(today.getTime() - offset).toISOString().slice(0, 10)
-  void board.refresh(target)
-  notify('已切换到今天')
+  if (copyLoading.value) return
+  copyLoading.value = true
+  const target = toDateString(new Date())
+  try {
+    await switchDate(target)
+    if (!board.error) notify('已切换到今天')
+  } finally {
+    copyLoading.value = false
+  }
 }
 
 function zoom(direction: 'up' | 'out'): void {
