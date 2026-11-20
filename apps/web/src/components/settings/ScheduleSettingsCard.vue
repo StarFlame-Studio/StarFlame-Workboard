@@ -33,6 +33,62 @@
 
       <v-divider class="my-3" />
 
+      <!-- 课铃偏移：只调整时间卡的倒计时，时钟与作息时间文字保持原样 -->
+      <div class="pause-row">
+        <v-icon class="mr-2" icon="mdi-bell-ring" size="22" />
+        <div class="pause-text">
+          <div class="font-weight-medium">课铃偏移时间</div>
+          <div class="text-caption text-medium-emphasis">
+            正数表示提前响铃、负数表示延后响铃，单位分钟。时间卡的时钟与作息时间文字不变，只有「距离放学」倒计时随课铃提前或延后归零。
+          </div>
+        </div>
+        <div class="d-flex align-center flex-wrap" style="gap: 8px">
+          <v-text-field
+            :disabled="bellOffsetAuto"
+            :model-value="bellOffset"
+            class="bell-field"
+            density="compact"
+            hide-details
+            label="统一偏移"
+            type="number"
+            variant="outlined"
+            @update:model-value="(v) => setBellOffset(v)"
+          />
+          <v-switch
+            :model-value="bellOffsetAuto"
+            color="primary"
+            density="compact"
+            hide-details
+            inset
+            label="每天自动调整"
+            @update:model-value="(v) => setBellAuto(Boolean(v))"
+          />
+        </div>
+      </div>
+
+      <div v-if="bellOffsetAuto" class="bell-days">
+        <div class="text-caption text-medium-emphasis mb-2">
+          按周几设置当天的偏移；留空的日子沿用统一偏移（当前统一偏移：{{ describeBellOffset(bellOffset) }}）。
+        </div>
+        <div class="bell-days-grid">
+          <v-text-field
+            v-for="day in dayList"
+            :key="'bell-' + day.key"
+            :model-value="bellOffsets[day.key] ?? ''"
+            class="bell-field"
+            density="compact"
+            hide-details
+            :label="day.label"
+            placeholder="统一"
+            type="number"
+            variant="outlined"
+            @update:model-value="(v) => setBellDay(day.key, v)"
+          />
+        </div>
+      </div>
+
+      <v-divider class="my-3" />
+
       <v-list>
         <template v-for="(day, index) in dayList" :key="day.key">
           <v-list-item>
@@ -187,6 +243,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import {
+  BELL_DAY_KEYS,
+  describeBellOffset,
+  normalizeBellOffset,
+} from '@/lib/bellOffset'
 
 interface DaySchedule {
   start: string
@@ -231,6 +292,45 @@ const pauseDuringClass = computed(() => props.model['update.pauseDuringClass'] !
 
 function setPause(value: boolean): void {
   emit('update', 'update.pauseDuringClass', value)
+}
+
+// ---------- 课铃偏移 ----------
+
+const bellOffset = computed(() => normalizeBellOffset(props.model['schedule.bellOffset']))
+const bellOffsetAuto = computed(() => props.model['schedule.bellOffsetAuto'] === true)
+
+const bellOffsets = computed<Record<string, number>>(() => {
+  const raw = props.model['schedule.bellOffsets']
+  if (!raw || typeof raw !== 'object') return {}
+  const source = raw as Record<string, unknown>
+  const result: Record<string, number> = {}
+  for (const key of BELL_DAY_KEYS) {
+    const value = source[key]
+    if (value === undefined || value === null || value === '') continue
+    const parsed = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(parsed)) continue
+    result[key] = normalizeBellOffset(parsed)
+  }
+  return result
+})
+
+function setBellOffset(value: unknown): void {
+  if (value === '' || value === null || value === undefined) {
+    emit('update', 'schedule.bellOffset', 0)
+    return
+  }
+  emit('update', 'schedule.bellOffset', normalizeBellOffset(value))
+}
+
+function setBellAuto(value: boolean): void {
+  emit('update', 'schedule.bellOffsetAuto', value)
+}
+
+function setBellDay(key: string, value: unknown): void {
+  const next: Record<string, number> = { ...bellOffsets.value }
+  if (value === '' || value === null || value === undefined) delete next[key]
+  else next[key] = normalizeBellOffset(value)
+  emit('update', 'schedule.bellOffsets', next)
 }
 
 function valueOf(key: string): DaySchedule {
@@ -376,6 +476,24 @@ function savePeriods(): void {
 <style scoped>
 .time-field {
   max-width: 130px;
+}
+
+.bell-field {
+  max-width: 130px;
+}
+
+.bell-field :deep(input) {
+  text-align: center;
+}
+
+.bell-days {
+  padding: 2px 4px 8px;
+}
+
+.bell-days-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
 }
 
 .pause-row {
