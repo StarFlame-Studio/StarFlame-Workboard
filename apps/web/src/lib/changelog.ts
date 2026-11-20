@@ -69,7 +69,9 @@ export interface ChangelogAreaView {
  * 尚未发布的版本条目：真正打包发布时，把条目从这里移到 CHANGELOG 顶部。
  * 目的：网页端不要在桌面端安装包上传完成前就提前展示新版本号与更新内容。
  */
-export const PENDING_CHANGELOG: ChangelogEntry[] = [
+export const PENDING_CHANGELOG: ChangelogEntry[] = []
+
+export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '1.1.6',
     date: '2026-11-20',
@@ -109,9 +111,6 @@ export const PENDING_CHANGELOG: ChangelogEntry[] = [
       ],
     },
   },
-]
-
-export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '1.1.5',
     date: '2026-11-19',

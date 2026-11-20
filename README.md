@@ -3,7 +3,7 @@
 面向中小学课堂的作业看板系统：教室一体机 / 老师设备 / 学生设备通过「班级码 + 授权码」接入，实时同步作业、考试、模板与课程时间段。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](./LICENSE)
-![Version](https://img.shields.io/badge/version-1.1.5-blue)
+![Version](https://img.shields.io/badge/version-1.1.6-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green)
 
 - GitHub：<https://github.com/StarFlame-Studio/StarFlame-Workboard>
