@@ -235,12 +235,11 @@ async function load(): Promise<void> {
         })),
       )
     }
-    if (typeof settings.autoSavePromptText === 'string' && settings.autoSavePromptText) {
-      autoSaveText.value = settings.autoSavePromptText
-    }
-    if (typeof settings.manualSavePromptText === 'string' && settings.manualSavePromptText) {
-      manualSaveText.value = settings.manualSavePromptText
-    }
+    // 新键优先，旧的扁平键作兼容兜底
+    const autoText = settings['edit.autoSavePromptText'] ?? settings.autoSavePromptText
+    if (typeof autoText === 'string' && autoText) autoSaveText.value = autoText
+    const manualText = settings['edit.manualSavePromptText'] ?? settings.manualSavePromptText
+    if (typeof manualText === 'string' && manualText) manualSaveText.value = manualText
     syncSubjectBooks()
   } catch (error) {
     notify(error instanceof Error ? error.message : '加载失败', 'error')
@@ -282,8 +281,8 @@ async function save(): Promise<void> {
           commonSubject: { books: commonMap },
           actions: actionsText.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean),
         },
-        autoSavePromptText: autoSaveText.value,
-        manualSavePromptText: manualSaveText.value,
+        'edit.autoSavePromptText': autoSaveText.value,
+        'edit.manualSavePromptText': manualSaveText.value,
       },
     })
     notify('已保存')

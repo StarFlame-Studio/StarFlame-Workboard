@@ -315,14 +315,16 @@ if (wantedTab && tabs.some((item) => item.value === wantedTab)) activeTab.value 
 const group = {
   edit: [
     'edit.autoSave', 'edit.blockNonTodayAutoSave', 'edit.confirmNonTodaySave',
-    'edit.refreshBeforeEdit', 'edit.autoSavePromptText', 'edit.manualSavePromptText',
+    'edit.refreshBeforeEdit', 'edit.blockPastDataEdit',
+    'edit.autoSavePromptText', 'edit.manualSavePromptText',
   ],
   display: [
     'timeCard.enabled', 'display.emptySubjectDisplay', 'display.dynamicSort',
     'display.showRandomButton', 'display.showFullscreenButton', 'display.cardHoverEffect',
     'display.enhancedTouchMode', 'display.showQuickTools', 'display.showPasteButtons',
     'display.showAntiScreenBurnCard', 'display.showExamScheduleButton',
-    'display.showAttendance', 'display.forceDesktopMode', 'display.lateStudentsArePresent',
+    'display.showListCard', 'display.showAttendance', 'display.forceDesktopMode',
+    'display.lateStudentsArePresent', 'pwa.hideInstallCard',
   ],
   timeSync: ['timeSync.source', 'timeSync.customHost', 'timeSync.intervalMin'],
   notification: ['notification.singleSound', 'notification.urgentSound'],
@@ -330,6 +332,7 @@ const group = {
   randomPicker: [
     'randomPicker.enabled', 'randomPicker.mode', 'randomPicker.minNumber',
     'randomPicker.maxNumber', 'randomPicker.defaultCount', 'randomPicker.animation',
+    'randomPicker.excludeAbsent', 'randomPicker.excludeLate', 'randomPicker.excludeExcluded',
   ],
 }
 

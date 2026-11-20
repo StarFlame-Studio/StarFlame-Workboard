@@ -573,6 +573,9 @@
 .mdi-open-source-initiative::before {
   content: "\F0BAE";
 }
+.mdi-package-variant-closed::before {
+  content: "\F03D7";
+}
 .mdi-page-first::before {
   content: "\F0600";
 }

@@ -129,11 +129,75 @@ const link = ref('')
 const settings = ref<Record<string, unknown>>({})
 const snack = reactive({ show: false, text: '', color: 'success' })
 
+/**
+ * 预配链接可携带的设置快照。
+ * 这里必须使用与「班级设置」一致的设置键（settingDefs.ts 里的点分键），
+ * 否则设备端读不到（看板只认这些键，旧的扁平键已不再写入）。
+ */
 const settingGroups = [
-  { key: 'display', label: '显示设置', keys: ['theme', 'showTime', 'showExam', 'showAttendance', 'showNotice', 'showHitokoto', 'clock12h', 'fontScale', 'columns', 'emptySubjectDisplay'] },
-  { key: 'edit', label: '编辑设置', keys: ['autoSave', 'autoSavePromptText', 'manualSavePromptText'] },
-  { key: 'random', label: '随机点名', keys: ['randomNameMode', 'randomExcludeAbsent', 'showRandomPicker'] },
-  { key: 'background', label: '背景设置', keys: ['bgEnabled', 'bgUrl', 'bgBlur', 'bgOpacity'] },
+  {
+    key: 'display',
+    label: '显示设置',
+    keys: [
+      'theme.mode',
+      'timeCard.enabled',
+      'hitokoto.enabled',
+      'display.emptySubjectDisplay',
+      'display.dynamicSort',
+      'display.showRandomButton',
+      'display.showFullscreenButton',
+      'display.cardHoverEffect',
+      'display.enhancedTouchMode',
+      'display.showQuickTools',
+      'display.showPasteButtons',
+      'display.showAntiScreenBurnCard',
+      'display.showListCard',
+      'display.showExamScheduleButton',
+      'display.showAttendance',
+      'display.forceDesktopMode',
+      'display.lateStudentsArePresent',
+      'font.size',
+    ],
+  },
+  {
+    key: 'edit',
+    label: '编辑设置',
+    keys: [
+      'edit.autoSave',
+      'edit.blockNonTodayAutoSave',
+      'edit.confirmNonTodaySave',
+      'edit.refreshBeforeEdit',
+      'edit.blockPastDataEdit',
+      'edit.autoSavePromptText',
+      'edit.manualSavePromptText',
+    ],
+  },
+  {
+    key: 'random',
+    label: '随机点名',
+    keys: [
+      'randomPicker.enabled',
+      'randomPicker.mode',
+      'randomPicker.minNumber',
+      'randomPicker.maxNumber',
+      'randomPicker.defaultCount',
+      'randomPicker.animation',
+      'randomPicker.excludeAbsent',
+      'randomPicker.excludeLate',
+      'randomPicker.excludeExcluded',
+    ],
+  },
+  {
+    key: 'background',
+    label: '背景设置',
+    keys: [
+      'background.enabled',
+      'background.url',
+      'background.imageData',
+      'background.blur',
+      'background.opacity',
+    ],
+  },
 ]
 
 function isGroupSelected(groupKey: string): boolean {

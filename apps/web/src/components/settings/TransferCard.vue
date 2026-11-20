@@ -91,15 +91,22 @@ const LOCAL_ONLY_KEYS = ['theme.mode']
 /** 预览用的设置项名（中文提示，缺失时直接显示键名） */
 const KEY_LABELS: Record<string, string> = {
   'font.size': '看板正文字号',
-  'fontScale': '字体缩放',
-  clock12h: '12 小时制',
-  emptySubjectDisplay: '空科目展示方式',
+  'display.emptySubjectDisplay': '空科目展示方式',
+  'display.showAttendance': '出勤统计卡片',
+  'timeCard.enabled': '时间卡片',
+  'hitokoto.enabled': '一言卡片',
+  'background.enabled': '背景图',
+  'randomPicker.enabled': '随机点名',
   examCardIds: '考试卡片',
   'schedule.weekly': '作息时间',
   homeworkTemplate: '作业模板',
-  hitokoto: '一言',
-  randomPicker: '随机点名',
-  background: '背景',
+  // 旧扁平键：历史备份文件里仍可能出现
+  'fontScale': '字体缩放',
+  clock12h: '12 小时制',
+  emptySubjectDisplay: '空科目展示方式（旧）',
+  hitokoto: '一言（旧）',
+  randomPicker: '随机点名（旧）',
+  background: '背景（旧）',
   'notification.sound': '通知铃声',
 }
 

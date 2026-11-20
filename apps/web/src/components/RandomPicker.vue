@@ -109,10 +109,31 @@ const props = withDefaults(
     modelValue: boolean
     students: PickerStudent[]
     attendance?: Record<string, string>
-    defaultNameMode?: boolean
+    /** 默认抽取人数（randomPicker.defaultCount） */
+    defaultCount?: number
+    /** 默认模式：姓名 / 学号（randomPicker.mode） */
+    defaultMode?: 'name' | 'number'
     defaultExcludeAbsent?: boolean
+    defaultExcludeExcluded?: boolean
+    /** 默认排除迟到学生（randomPicker.excludeLate） */
+    defaultExcludeLate?: boolean
+    /** 学号模式下的号码范围（randomPicker.minNumber / maxNumber） */
+    minNumber?: number
+    maxNumber?: number
+    /** 是否播放滚动动画（randomPicker.animation） */
+    spinAnimation?: boolean
   }>(),
-  { attendance: () => ({}), defaultNameMode: true, defaultExcludeAbsent: true },
+  {
+    attendance: () => ({}),
+    defaultCount: 1,
+    defaultMode: 'name',
+    defaultExcludeAbsent: true,
+    defaultExcludeExcluded: true,
+    defaultExcludeLate: false,
+    minNumber: 1,
+    maxNumber: 60,
+    spinAnimation: true,
+  },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -122,16 +143,27 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 })
 
-const count = ref(1)
-const mode = ref<'name' | 'number'>(props.defaultNameMode ? 'name' : 'number')
-const includeLate = ref(false)
+const count = ref(clampCount(props.defaultCount))
+const mode = ref<'name' | 'number'>(props.defaultMode === 'number' ? 'number' : 'name')
+const includeLate = ref(!props.defaultExcludeLate)
 const excludeAbsent = ref(props.defaultExcludeAbsent)
-const excludeExcluded = ref(true)
+const excludeExcluded = ref(props.defaultExcludeExcluded)
 const spinning = ref(false)
 const results = ref<PickerStudent[]>([])
 const showPool = ref(false)
 
-const pool = computed(() => {
+/** 学号模式：按设置里的学号范围生成号码池 */
+const numberPool = computed<PickerStudent[]>(() => {
+  const min = Math.min(props.minNumber, props.maxNumber)
+  const max = Math.max(props.minNumber, props.maxNumber)
+  const list: PickerStudent[] = []
+  for (let no = min; no <= max; no += 1) {
+    list.push({ id: 'no-' + no, name: String(no), studentNo: String(no) })
+  }
+  return list
+})
+
+const namePool = computed(() => {
   return props.students.filter((student) => {
     const status = props.attendance[student.id] ?? 'present'
     if (status === 'absent' && excludeAbsent.value) return false
@@ -141,20 +173,35 @@ const pool = computed(() => {
   })
 })
 
+const pool = computed(() => (mode.value === 'number' ? numberPool.value : namePool.value))
+
 const maxCount = computed(() => Math.max(1, pool.value.length))
+
+function clampCount(value: number, max = Number.POSITIVE_INFINITY): number {
+  const numeric = Number(value)
+  const safe = Number.isFinite(numeric) ? Math.round(numeric) : 1
+  return Math.min(Math.max(1, safe), Math.max(1, max))
+}
 
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       results.value = []
-      count.value = 1
       spinning.value = false
-      mode.value = props.defaultNameMode ? 'name' : 'number'
+      mode.value = props.defaultMode === 'number' ? 'number' : 'name'
       excludeAbsent.value = props.defaultExcludeAbsent
+      excludeExcluded.value = props.defaultExcludeExcluded
+      includeLate.value = !props.defaultExcludeLate
+      count.value = clampCount(props.defaultCount, maxCount.value)
     }
   },
 )
+
+// 切换模式 / 池子变化后，人数不能超过池子容量
+watch([mode, maxCount], () => {
+  count.value = clampCount(count.value, maxCount.value)
+})
 
 function pick(): PickerStudent[] {
   const source = [...pool.value]
@@ -170,6 +217,11 @@ function pick(): PickerStudent[] {
 
 function spin(): void {
   if (spinning.value || pool.value.length === 0) return
+  // 关闭滚动动画后直接出结果
+  if (!props.spinAnimation) {
+    results.value = pick()
+    return
+  }
   spinning.value = true
   let ticks = 0
   const timer = window.setInterval(() => {
