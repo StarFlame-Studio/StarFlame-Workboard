@@ -81,6 +81,36 @@ export const noticeCreateSchema = z.object({
 
 export const noticeUpdateSchema = noticeCreateSchema.partial()
 
+/** 后台群发：同一份通知内容一次发到多个班级 */
+export const noticeBroadcastSchema = z.object({
+  classIds: z
+    .array(z.string().trim().min(1))
+    .min(1, '请至少选择一个班级')
+    .max(200, '一次最多选择 200 个班级'),
+  title: z.string().trim().max(64).default(''),
+  content: z.string().max(2000).default(''),
+  level: z.enum(['info', 'urgent']).default('info'),
+  pinned: z.boolean().default(false),
+  expireAt: z.string().datetime().nullable().optional(),
+})
+
+/** 后台批量：每个班级各一条独立通知内容 */
+export const noticeBatchItemSchema = z.object({
+  classId: z.string().trim().min(1, '请选择班级'),
+  title: z.string().trim().max(64).default(''),
+  content: z.string().max(2000).default(''),
+  level: z.enum(['info', 'urgent']).default('info'),
+  pinned: z.boolean().default(false),
+  expireAt: z.string().datetime().nullable().optional(),
+})
+
+export const noticeBatchSchema = z.object({
+  items: z
+    .array(noticeBatchItemSchema)
+    .min(1, '请至少填写一条通知')
+    .max(200, '一次最多提交 200 条通知'),
+})
+
 export const examSubjectSchema = z.object({
   subjectId: z.string().min(1).nullable().optional(),
   name: z.string().trim().max(32).nullable().optional(),

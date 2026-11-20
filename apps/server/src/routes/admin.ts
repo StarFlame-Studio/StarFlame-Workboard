@@ -4,6 +4,8 @@ import {
   classCreateSchema,
   classJoinSchema,
   classUpdateSchema,
+  noticeBatchSchema,
+  noticeBroadcastSchema,
   accessCodeCreateSchema,
   accessCodeUpdateSchema,
   userCreateSchema,
@@ -17,6 +19,8 @@ import {
   classes,
   devices,
   homework,
+  noticeReads,
+  notices,
   students,
   subjects,
   systemSettings,
@@ -42,7 +46,7 @@ import { requireAdmin, requireUser } from '../middleware/auth.js'
 import { validateBody } from '../middleware/validate.js'
 import { seedSubjects } from '../services/classService.js'
 import { isDeviceOnline } from '../services/devicePresence.js'
-import { disconnectDeviceSockets } from '../realtime/socket.js'
+import { broadcastChange, disconnectDeviceSockets } from '../realtime/socket.js'
 
 const router = Router()
 
@@ -811,6 +815,192 @@ router.post('/devices/revoke-batch', writeLimiter, async (req, res, next) => {
   }
 })
 
+/* ------------------------------------------------------------------
+ * 通知管理：后台跨班级查看、群发（同一内容多班级）与批量发送（每班不同内容）
+ * ------------------------------------------------------------------ */
+
+/** 通知列表单次最多扫描行数 */
+const NOTICE_LIST_SCAN_LIMIT = 1000
+
+router.get('/notices', async (req, res, next) => {
+  try {
+    const { page, pageSize, offset } = pageParams(req.query as Record<string, unknown>)
+    const rawKeyword = String(req.query.keyword ?? '').trim()
+    const classId = typeof req.query.classId === 'string' ? req.query.classId : ''
+    const filters = []
+    if (classId) filters.push(eq(notices.classId, classId))
+    if (rawKeyword) {
+      const pattern = '%' + rawKeyword + '%'
+      filters.push(or(like(notices.title, pattern), like(notices.content, pattern), like(classes.name, pattern))!)
+    }
+    const where = filters.length > 0 ? and(...filters) : undefined
+    const rows = await db
+      .select({
+        id: notices.id,
+        classId: notices.classId,
+        className: classes.name,
+        title: notices.title,
+        content: notices.content,
+        level: notices.level,
+        pinned: notices.pinned,
+        publishAt: notices.publishAt,
+        expireAt: notices.expireAt,
+        createdAt: notices.createdAt,
+      })
+      .from(notices)
+      .leftJoin(classes, eq(classes.id, notices.classId))
+      .where(where)
+      .orderBy(desc(notices.createdAt))
+      .limit(NOTICE_LIST_SCAN_LIMIT)
+    const [totalRow] = await db.select({ value: count() }).from(notices).leftJoin(classes, eq(classes.id, notices.classId)).where(where)
+    ok(res, {
+      items: rows.slice(offset, offset + pageSize),
+      total: totalRow?.value ?? 0,
+      page,
+      pageSize,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/** 校验目标班级：全部存在且未归档，否则整体拒绝（避免部分成功导致的不一致） */
+async function resolveTargetClasses(classIds: unknown): Promise<{ id: string; name: string }[]> {
+  const unique = Array.from(new Set((Array.isArray(classIds) ? classIds : []).map((id) => String(id).trim()).filter(Boolean)))
+  if (unique.length === 0) throw badRequest('请至少选择一个班级')
+  const rows = await db
+    .select({ id: classes.id, name: classes.name, status: classes.status })
+    .from(classes)
+    .where(inArray(classes.id, unique))
+  const active = rows.filter((row) => row.status === 'active')
+  if (active.length !== unique.length) {
+    const missing = unique.filter((id) => !active.some((row) => row.id === id))
+    throw badRequest('以下班级不存在或已归档：' + missing.join('、'))
+  }
+  return active.map((row) => ({ id: row.id, name: row.name }))
+}
+
+/** 群发通知：同一份内容一次写入多个班级 */
+router.post('/notices/broadcast', writeLimiter, validateBody(noticeBroadcastSchema), async (req, res, next) => {
+  try {
+    const input = req.validated as {
+      classIds: string[]
+      title: string
+      content: string
+      level: 'info' | 'urgent'
+      pinned: boolean
+      expireAt?: string | null
+    }
+    if (!input.title.trim() && !input.content.trim()) throw badRequest('标题与内容不能同时为空')
+    const targets = await resolveTargetClasses(input.classIds)
+    const publishAt = new Date()
+    const expireAt = input.expireAt ? new Date(input.expireAt) : null
+    const actorId = req.user!.id
+    const created: { id: string; classId: string }[] = []
+    for (const target of targets) {
+      const id = newId()
+      await db.insert(notices).values({
+        id,
+        classId: target.id,
+        title: input.title,
+        content: input.content,
+        level: input.level,
+        pinned: input.pinned,
+        publishAt,
+        expireAt,
+        createdBy: actorId,
+      })
+      created.push({ id, classId: target.id })
+      broadcastChange({ classId: target.id, scope: 'notice', action: 'create', actor: actorId })
+    }
+    await writeAudit({
+      actorType: 'user',
+      actorId,
+      action: 'notice.broadcast',
+      target: created.map((item) => item.id).join(','),
+      detail: { count: created.length, classIds: targets.map((item) => item.id), title: input.title, level: input.level },
+      ip: clientIp(req),
+    })
+    ok(res, { created: created.length, classIds: created.map((item) => item.classId) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/** 批量发送：每个班级一条独立内容 */
+router.post('/notices/batch', writeLimiter, validateBody(noticeBatchSchema), async (req, res, next) => {
+  try {
+    const input = req.validated as {
+      items: Array<{
+        classId: string
+        title: string
+        content: string
+        level: 'info' | 'urgent'
+        pinned: boolean
+        expireAt?: string | null
+      }>
+    }
+    const filled = input.items.filter((item) => item.title.trim() || item.content.trim())
+    if (filled.length === 0) throw badRequest('请至少填写一条通知内容')
+    const targets = await resolveTargetClasses(filled.map((item) => item.classId))
+    const classNames = new Map(targets.map((row) => [row.id, row.name]))
+    const publishAt = new Date()
+    const actorId = req.user!.id
+    const created: { id: string; classId: string; className: string }[] = []
+    for (const item of filled) {
+      const id = newId()
+      await db.insert(notices).values({
+        id,
+        classId: item.classId,
+        title: item.title,
+        content: item.content,
+        level: item.level,
+        pinned: item.pinned,
+        publishAt,
+        expireAt: item.expireAt ? new Date(item.expireAt) : null,
+        createdBy: actorId,
+      })
+      created.push({ id, classId: item.classId, className: classNames.get(item.classId) ?? '' })
+      broadcastChange({ classId: item.classId, scope: 'notice', action: 'create', actor: actorId })
+    }
+    await writeAudit({
+      actorType: 'user',
+      actorId,
+      action: 'notice.batch',
+      target: created.map((item) => item.id).join(','),
+      detail: { count: created.length, classIds: created.map((item) => item.classId) },
+      ip: clientIp(req),
+    })
+    ok(res, { created: created.length, items: created })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/** 删除某条通知（跨班级管理入口） */
+router.delete('/notices/:id', writeLimiter, async (req, res, next) => {
+  try {
+    const noticeId = param(req, 'id')
+    const rows = await db.select().from(notices).where(eq(notices.id, noticeId)).limit(1)
+    const row = rows[0]
+    if (!row) throw notFound('通知不存在')
+    await db.delete(noticeReads).where(eq(noticeReads.noticeId, noticeId))
+    await db.delete(notices).where(eq(notices.id, noticeId))
+    broadcastChange({ classId: row.classId, scope: 'notice', action: 'delete', actor: req.user!.id })
+    await writeAudit({
+      actorType: 'user',
+      actorId: req.user!.id,
+      classId: row.classId,
+      action: 'notice.delete',
+      target: noticeId,
+      detail: { title: row.title },
+      ip: clientIp(req),
+    })
+    ok(res, { id: noticeId, deleted: true })
+  } catch (error) {
+    next(error)
+  }
+})
 router.get('/audit-logs', async (req, res, next) => {
   try {
     const { page, pageSize, offset } = pageParams(req.query as Record<string, unknown>)

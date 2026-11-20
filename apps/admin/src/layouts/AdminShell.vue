@@ -77,6 +77,7 @@ watch(mobile, (isMobile) => {
 const NAV = [
   { key: 'overview', title: '概览', icon: 'mdi-view-dashboard-outline', href: '/' },
   { key: 'classes', title: '班级', icon: 'mdi-google-classroom', href: '/classes.html' },
+  { key: 'notices', title: '通知', icon: 'mdi-bullhorn-outline', href: '/notices.html' },
   { key: 'users', title: '用户', icon: 'mdi-account-multiple-outline', href: '/users.html' },
   { key: 'devices', title: '设备', icon: 'mdi-monitor-dashboard', href: '/devices.html' },
   { key: 'audit', title: '审计日志', icon: 'mdi-clipboard-list-outline', href: '/audit.html' },
