@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { DEVICE_TOKEN_STORAGE_KEY, type AccessPermission, type DeviceRole } from '@starflame/shared'
 import { getData, postData } from '@/lib/api'
 import { startPresence, stopPresence } from '@/lib/presence'
+import { connectRealtime, disconnectRealtime } from '@/lib/realtime'
 
 export type AccessRole = DeviceRole
 
@@ -75,6 +76,9 @@ export const useSessionStore = defineStore('session', {
       this.ready = true
       // 登录完成后立即接管心跳：后台的在线状态依赖 last_seen_at 持续刷新
       startPresence()
+      // 令牌换了，实时连接也要用新令牌重建，否则后台指令与看板同步都收不到
+      disconnectRealtime()
+      connectRealtime()
       return result
     },
     async loadMe() {
@@ -107,6 +111,7 @@ export const useSessionStore = defineStore('session', {
     },
     clear() {
       stopPresence()
+      disconnectRealtime()
       localStorage.removeItem(DEVICE_TOKEN_STORAGE_KEY)
       this.token = ''
       this.device = null

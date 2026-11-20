@@ -79,6 +79,8 @@ export interface SfDesktopBridge {
     startupNotice(): Promise<SfStartupNotice | null>
     quit(): Promise<void>
     relaunch(): Promise<void>
+    /** 后台远程卸载：启动系统卸载程序并退出；返回是否成功发起 */
+    uninstall(): Promise<{ ok: boolean; message?: string }>
     openExternal(url: string): Promise<boolean>
   }
   window: {

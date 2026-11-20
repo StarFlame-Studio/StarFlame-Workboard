@@ -14,6 +14,7 @@ const api = {
     startupNotice: () => ipcRenderer.invoke('sf:app:startupNotice'),
     quit: () => ipcRenderer.invoke('sf:app:quit'),
     relaunch: () => ipcRenderer.invoke('sf:app:relaunch'),
+    uninstall: () => ipcRenderer.invoke('sf:app:uninstall') as Promise<{ ok: boolean; message?: string }>,
     openExternal: (url: string) => ipcRenderer.invoke('sf:app:openExternal', url),
     tray: () => ipcRenderer.invoke('sf:app:tray') as Promise<{ enabled: boolean }>,
     show: () => ipcRenderer.invoke('sf:app:show') as Promise<boolean>,

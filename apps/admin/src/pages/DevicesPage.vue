@@ -97,6 +97,7 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn size="small" variant="text" @click="openDetail(item)">详情</v-btn>
+          <v-btn color="warning" size="small" variant="text" @click="askUninstall(item)">卸载</v-btn>
           <v-btn color="error" size="small" variant="text" @click="askRevoke(item)">吊销</v-btn>
         </template>
         <template #no-data>
@@ -195,6 +196,27 @@
           </v-btn>
           <v-spacer />
           <v-btn variant="text" @click="detailOpen = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="uninstallOpen" max-width="460">
+      <v-card v-if="uninstallTarget">
+        <v-card-title>远程卸载桌面版</v-card-title>
+        <v-card-text class="text-body-2">
+          <p class="mb-2">
+            将向「{{ uninstallTarget.name || '该设备' }}」下发卸载指令，桌面版星焰作业板会静默卸载并退出。
+          </p>
+          <v-alert class="mb-0" density="compact" type="info" variant="tonal">
+            仅对正在运行且处于在线状态的桌面端有效；网页端、已关闭或离线的设备收不到指令。
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="uninstallOpen = false">取消</v-btn>
+          <v-spacer />
+          <v-btn :loading="uninstalling" color="warning" variant="flat" @click="doUninstall">
+            确认卸载
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -432,6 +454,38 @@ async function doRevoke(): Promise<void> {
     notify(error instanceof Error ? error.message : '操作失败', 'error')
   } finally {
     revoking.value = false
+  }
+}
+
+// ---------- 远程卸载 ----------
+const uninstallOpen = ref(false)
+const uninstallTarget = ref<DeviceRow | null>(null)
+const uninstalling = ref(false)
+
+function askUninstall(item: DeviceRow): void {
+  uninstallTarget.value = item
+  uninstallOpen.value = true
+}
+
+async function doUninstall(): Promise<void> {
+  const target = uninstallTarget.value
+  if (!target) return
+  uninstalling.value = true
+  try {
+    const result = await postData<{ sent: number; delivered: boolean }>(
+      '/admin/devices/' + target.id + '/uninstall',
+    )
+    if (result.delivered) {
+      notify('已下发卸载指令，设备将在几秒内开始卸载')
+    } else {
+      notify('设备当前不在线，卸载指令未送达', 'warning')
+    }
+    uninstallOpen.value = false
+    uninstallTarget.value = null
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '下发卸载指令失败', 'error')
+  } finally {
+    uninstalling.value = false
   }
 }
 

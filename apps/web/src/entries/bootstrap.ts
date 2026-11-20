@@ -13,6 +13,8 @@ import UpdateProgressDialog from '@/components/UpdateProgressDialog.vue'
 import { initDataSource } from '@/lib/dataSource'
 import { initOffline } from '@/lib/offline'
 import { startPresence } from '@/lib/presence'
+import { connectRealtime } from '@/lib/realtime'
+import { startDeviceCommands } from '@/lib/deviceCommands'
 import '@/styles/mdi-subset.css'
 import '@/styles/main.scss'
 
@@ -114,6 +116,14 @@ export function mountPage(PageComponent: Component, options?: { public?: boolean
       startPresence()
     } catch (err) {
       console.error('[boot] 心跳启动失败：', err)
+    }
+    // 后台远程指令（如卸载）走实时连接下发，任何页面都要能收到：
+    // 之前只有看板页建立连接，停在设置页/花名册时就收不到指令
+    try {
+      startDeviceCommands()
+      connectRealtime()
+    } catch (err) {
+      console.error('[boot] 实时连接启动失败：', err)
     }
   }
 }

@@ -46,7 +46,7 @@ import { requireAdmin, requireUser } from '../middleware/auth.js'
 import { validateBody } from '../middleware/validate.js'
 import { seedSubjects } from '../services/classService.js'
 import { deviceActivityAt, forgetDeviceActivity, isDeviceOnline } from '../services/devicePresence.js'
-import { broadcastChange, disconnectDeviceSockets } from '../realtime/socket.js'
+import { broadcastChange, disconnectDeviceSockets, sendDeviceCommand } from '../realtime/socket.js'
 
 const router = Router()
 
@@ -782,6 +782,34 @@ router.delete('/devices/:id', writeLimiter, async (req, res, next) => {
   }
 })
 
+/**
+ * 远程卸载设备上的桌面版作业板。
+ * 仅对已建立实时连接的桌面端有效：通过 socket 下发 device.command 指令，
+ * 客户端收到后自行调用卸载程序退出。网页端/离线设备收不到指令，sent 为 0。
+ */
+router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
+  try {
+    const deviceId = param(req, 'id')
+    const rows = await db.select().from(devices).where(eq(devices.id, deviceId)).limit(1)
+    if (!rows[0]) throw notFound('设备不存在')
+    if (rows[0].status !== 'active') throw badRequest('该设备已被吊销，无法远程卸载')
+
+    const sent = sendDeviceCommand(deviceId, { type: 'uninstall' })
+    await writeAudit({
+      actorType: 'user',
+      actorId: req.user!.id,
+      classId: rows[0].classId,
+      action: 'device.uninstall',
+      target: deviceId,
+      detail: { sent, name: rows[0].name },
+      ip: clientIp(req),
+    })
+    ok(res, { id: deviceId, sent, delivered: sent > 0 })
+  } catch (error) {
+    next(error)
+  }
+})
+
 /** 单次批量吊销上限：与设备列表扫描上限保持一致量级，避免一次请求锁表过久 */
 const DEVICE_BATCH_REVOKE_LIMIT = 200
 
@@ -934,7 +962,8 @@ router.post('/notices/broadcast', writeLimiter, validateBody(noticeBroadcastSche
       actorType: 'user',
       actorId,
       action: 'notice.broadcast',
-      target: created.map((item) => item.id).join(','),
+      // audit_logs.target 只有 128 字符，多班级群发时拼接全部 id 会超长导致审计写入失败
+      target: created.length === 1 ? created[0].id : 'batch:' + created.length,
       detail: { count: created.length, classIds: targets.map((item) => item.id), title: input.title, level: input.level },
       ip: clientIp(req),
     })
@@ -988,7 +1017,7 @@ router.post('/notices/batch', writeLimiter, validateBody(noticeBatchSchema), asy
       actorType: 'user',
       actorId,
       action: 'notice.batch',
-      target: created.map((item) => item.id).join(','),
+      target: created.length === 1 ? created[0].id : 'batch:' + created.length,
       detail: { count: created.length, classIds: created.map((item) => item.classId) },
       ip: clientIp(req),
     })
