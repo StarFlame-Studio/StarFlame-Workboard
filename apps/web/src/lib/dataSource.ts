@@ -164,11 +164,11 @@ export function hasCachedSnapshot(): boolean {
 }
 
 /** 造一份空白看板：默认科目 + 默认设置，纯本机数据 */
-function emptyBootstrap(): BoardBootstrap {
+function emptyBootstrap(date?: string): BoardBootstrap {
   return {
     class: { id: LOCAL_CLASS_ID, name: LOCAL_CLASS_NAME, grade: null, school: null, status: 'active' },
     settings: { ...DEFAULT_BOARD_SETTINGS } as Record<string, unknown>,
-    date: todayString(),
+    date: date ?? todayString(),
     subjects: DEFAULT_SUBJECTS.map((item, index) => ({
       id: 'local-subject-' + item.code,
       code: item.code,
@@ -184,6 +184,22 @@ function emptyBootstrap(): BoardBootstrap {
     students: [],
     stats: { studentCount: 0, homeworkCount: 0, hasAttendanceToday: false },
   }
+}
+
+/**
+ * 用缓存快照派生「指定日期」的看板。
+ * 离线/本地模式下只有一个最近日期的快照，直接返回会让日期切换按钮完全失效
+ * （点了上下一天，看板日期仍停在快照日期），所以这里按目标日期过滤作业并改写日期。
+ * 集合类数据（科目/学生/通知/考试）与日期无关，原样保留。
+ */
+export function deriveSnapshotForDate(snapshot: BoardBootstrap, target: string): BoardBootstrap {
+  const copy = JSON.parse(JSON.stringify(snapshot)) as BoardBootstrap
+  if (copy.date !== target) {
+    copy.date = target
+    copy.homework = (copy.homework ?? []).filter((item) => item.dueDate === target)
+    copy.stats = { ...(copy.stats ?? { studentCount: 0, homeworkCount: 0, hasAttendanceToday: false }), homeworkCount: copy.homework.length }
+  }
+  return copy
 }
 
 /**
@@ -258,7 +274,7 @@ export async function loadBoard(date?: string): Promise<BoardBootstrap> {
       // 手动本地模式：从未登录、本机也没有缓存时也要能用 → 生成空白看板继续
       if (ds.mode === 'local') {
         const board = ensureLocalBoard()
-        return JSON.parse(JSON.stringify(board)) as BoardBootstrap
+        return deriveSnapshotForDate(board, target)
       }
       ds.needsOnlineLoad = true
       ds.usingCache = false
@@ -269,7 +285,7 @@ export async function loadBoard(date?: string): Promise<BoardBootstrap> {
     ds.usingCache = true
     ds.needsOnlineLoad = false
     refreshPending()
-    return JSON.parse(JSON.stringify(entry.snapshot)) as BoardBootstrap
+    return deriveSnapshotForDate(entry.snapshot, target)
   }
 
   // 首屏失败不立刻判死：小屏/一体机冷启动首包偶尔会超时，自动重试两次再降级
@@ -304,7 +320,7 @@ export async function loadBoard(date?: string): Promise<BoardBootstrap> {
       ds.offline = true
       applyHooks()
       refreshPending()
-      return JSON.parse(JSON.stringify(entry.snapshot)) as BoardBootstrap
+      return deriveSnapshotForDate(entry.snapshot, target)
     }
     ds.usingCache = false
     throw error
@@ -746,15 +762,18 @@ function handleLocalRead(url: string, params?: Record<string, unknown>): unknown
 
   // bootstrap 也读本地快照：设置页、模板页在本地模式下不应再去请求云端
   if (path === '/board/bootstrap') {
+    const requested = typeof params?.date === 'string' ? String(params.date) : ''
+    const target = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : todayString()
     const snapshot = getCacheClassSnapshot(classId)
-    return snapshot ?? (JSON.parse(JSON.stringify(emptyBootstrap())) as BoardBootstrap)
+    return snapshot ? deriveSnapshotForDate(snapshot, target) : emptyBootstrap(target)
   }
 
   if (url === '/board/attendance') {
-    const saved = readAttendance(classId) as { date?: string; records?: unknown[] } | null
-    if (saved && saved.records) return saved
     const snapshot = getCacheClassSnapshot(classId)
     const date = String(params?.date ?? snapshot?.date ?? todayString())
+    const saved = readAttendance(classId) as { date?: string; records?: unknown[] } | null
+    // 本机只保存最近一次考勤；查询其它日期时不能把那份数据当成当天结果
+    if (saved && saved.records && (!saved.date || saved.date === date)) return saved
     return {
       date,
       records: (snapshot?.students ?? []).map((student) => ({
