@@ -1,7 +1,7 @@
 {
   "name": "@starflame/desktop",
   "private": true,
-  "version": "1.1.5",
+  "version": "1.1.7",
   "description": "星焰作业板 Windows 桌面端（Electron）",
   "author": {
     "name": "焰火工作室"

@@ -71,6 +71,15 @@ export interface ChangelogAreaView {
  */
 export const PENDING_CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.1.7',
+    date: '2026-11-20',
+    summary: '优化了使用体验',
+    desktop: true,
+  },
+]
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
     version: '1.1.6',
     date: '2026-11-20',
     summary: '预配链接支持打开即自动登录并直达作业看板；新增课铃偏移时间调整，放学倒计时与铃声对齐',
@@ -109,9 +118,6 @@ export const PENDING_CHANGELOG: ChangelogEntry[] = [
       ],
     },
   },
-]
-
-export const CHANGELOG: ChangelogEntry[] = [
   {
     version: '1.1.5',
     date: '2026-11-19',
