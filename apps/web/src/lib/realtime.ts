@@ -11,10 +11,19 @@ export interface BoardChangeEvent {
   at: number
 }
 
+/** 后台下发的设备指令（目前只有远程卸载） */
+export interface DeviceCommand {
+  type: string
+  at?: number
+  [key: string]: unknown
+}
+
 type Listener = (event: BoardChangeEvent) => void
+type CommandListener = (command: DeviceCommand) => void
 
 let socket: Socket | null = null
 const listeners = new Set<Listener>()
+const commandListeners = new Set<CommandListener>()
 
 /** 断开与重连时对外通知 */
 const statusListeners = new Set<(connected: boolean) => void>()
@@ -121,6 +130,16 @@ export function connectRealtime(): Socket | null {
     }
   })
 
+  socket.on('device.command', (payload: DeviceCommand) => {
+    for (const fn of commandListeners) {
+      try {
+        fn(payload)
+      } catch {
+        // 单个监听器异常不影响其他
+      }
+    }
+  })
+
   return socket
 }
 
@@ -136,6 +155,12 @@ export function disconnectRealtime(): void {
 export function onBoardChange(listener: Listener): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+/** 订阅后台下发的设备指令；返回取消订阅函数 */
+export function onDeviceCommand(listener: CommandListener): () => void {
+  commandListeners.add(listener)
+  return () => commandListeners.delete(listener)
 }
 
 export function onRealtimeStatus(listener: (connected: boolean) => void): () => void {

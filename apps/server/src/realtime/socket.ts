@@ -177,6 +177,26 @@ export function disconnectDeviceSockets(deviceIds: string[]): number {
   return closed
 }
 
+/**
+ * 向指定设备的实时连接下发一条指令（如远程卸载）。
+ * 与 disconnectDeviceSockets 不同，这里不主动断开连接，由客户端自行处理。
+ * 返回送达的连接数；设备不在线时返回 0。
+ */
+export function sendDeviceCommand(
+  deviceId: string,
+  command: { type: string; [key: string]: unknown },
+): number {
+  if (!io || !deviceId) return 0
+  let sent = 0
+  for (const socket of io.sockets.sockets.values()) {
+    const targetId = (socket.data.deviceId as string) || ''
+    if (targetId !== deviceId) continue
+    socket.emit('device.command', { ...command, at: Date.now() })
+    sent += 1
+  }
+  return sent
+}
+
 export function getIo(): Server | null {
   return io
 }

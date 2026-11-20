@@ -526,7 +526,7 @@ import type { ExamItem, NoticeItem, SubjectInfo } from '@starflame/shared'
 import { getData, patchData, postData } from '@/lib/api'
 import { playTone, unlockAudioOnFirstGesture } from '@/lib/soundPresets'
 import { ensureNoticePermission, sendSystemNotice } from '@/lib/systemNotify'
-import { connectRealtime, disconnectRealtime, onBoardChange, onLatency, onRealtimeStatus } from '@/lib/realtime'
+import { onBoardChange, onLatency, onRealtimeStatus } from '@/lib/realtime'
 import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSource'
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
@@ -1548,8 +1548,7 @@ onMounted(async () => {
   window.addEventListener('pointerdown', () => { void ensureNoticePermission() }, { once: true })
 
   // ---------- 实时同步 ----------
-  connectRealtime()
-
+  // 实时连接由 bootstrap 统一建立（后台远程指令也要靠它下发），这里只挂监听
   stopLatency = onLatency((ms) => {
     latency.value = ms
   })
@@ -1585,7 +1584,7 @@ onBeforeUnmount(() => {
   stopRealtime?.()
   stopStatus?.()
   stopLatency?.()
-  disconnectRealtime()
+  // 不断开实时连接：连接由全局持有，供其它页面与后台指令使用
   window.removeEventListener('beforeinstallprompt', onBeforeInstall)
   window.removeEventListener('pageshow', onPageShow)
   setOfflineNotify(null)

@@ -77,6 +77,13 @@ export function setUpdateSchedule(config: SfUpdateSchedule): Promise<boolean> {
   return desktopBridge ? desktopBridge.update.setSchedule(config) : Promise.resolve(false)
 }
 
+/** 后台远程卸载桌面端；网页端没有可卸载的安装包，直接返回失败 */
+export function uninstallApp(): Promise<{ ok: boolean; message?: string }> {
+  return desktopBridge
+    ? desktopBridge.app.uninstall()
+    : Promise.resolve({ ok: false, message: '网页端不支持远程卸载' })
+}
+
 export function openExternal(url: string): void {
   if (desktopBridge) void desktopBridge.app.openExternal(url)
   else window.open(url, '_blank', 'noopener,noreferrer')

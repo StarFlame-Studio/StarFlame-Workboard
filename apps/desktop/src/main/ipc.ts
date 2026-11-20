@@ -10,6 +10,7 @@ import { rollbackToVersion } from './rollback'
 import { registerUpdateScheduleIpc } from './updateSchedule'
 import { destroyTray, hasTray, showMainWindow } from './tray'
 import { setQuitting } from './appState'
+import { uninstallSelf } from './uninstall'
 
 const MAX_CACHE_BYTES = 4 * 1024 * 1024
 const EXTRA_HOSTS = ['yanhuoyiyou.cn']
@@ -90,6 +91,9 @@ export function registerIpcHandlers(): void {
       return { openAtLogin: !open }
     }
   })
+
+  // 后台远程卸载：静默运行卸载程序后退出，网页端不会走到这里
+  ipcMain.handle('sf:app:uninstall', () => uninstallSelf())
 
   ipcMain.handle('sf:app:openExternal', async (_e, url: unknown) => {
     if (typeof url !== 'string' || !canOpenExternal(url)) return false
