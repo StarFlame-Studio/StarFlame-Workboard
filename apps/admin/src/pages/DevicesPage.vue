@@ -97,16 +97,36 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn size="small" variant="text" @click="openDetail(item)">详情</v-btn>
-          <v-btn
-            v-if="!item.uninstallPending"
-            color="warning"
+          <template v-if="remoteUninstallReady(item)">
+            <v-btn
+              v-if="!item.uninstallPending"
+              color="warning"
+              size="small"
+              variant="text"
+              @click="askUninstall(item)"
+            >
+              卸载
+            </v-btn>
+            <v-chip v-else color="warning" size="small" variant="tonal">卸载待送达</v-chip>
+          </template>
+          <v-chip
+            v-else
+            color="default"
             size="small"
-            variant="text"
-            @click="askUninstall(item)"
+            variant="tonal"
+            :title="remoteUninstallHint(item)"
           >
-            卸载
-          </v-btn>
-          <v-chip v-else color="warning" size="small" variant="tonal">卸载待送达</v-chip>
+            需升级
+          </v-chip>
+          <v-chip
+            v-if="item.commandAck?.status === 'failed'"
+            color="error"
+            size="small"
+            variant="tonal"
+            :title="item.commandAck?.message || '设备执行卸载失败'"
+          >
+            卸载失败
+          </v-chip>
           <v-btn color="error" size="small" variant="text" @click="askRevoke(item)">吊销</v-btn>
         </template>
         <template #no-data>
@@ -185,6 +205,30 @@
             <div class="detail-value detail-mono">{{ detailTarget.lastIp || '未记录' }}</div>
           </div>
 
+          <template v-if="detailTarget.commandDispatchedAt || detailTarget.commandAck">
+            <div class="detail-section-title mt-4">远程卸载</div>
+            <div class="detail-grid">
+              <div class="detail-label">下发时间</div>
+              <div class="detail-value">
+                {{ detailTarget.commandDispatchedAt ? formatDate(detailTarget.commandDispatchedAt) : '未下发' }}
+              </div>
+              <div class="detail-label">执行结果</div>
+              <div class="detail-value">
+                <v-chip
+                  :color="commandAckColor(detailTarget.commandAck)"
+                  size="small"
+                  variant="tonal"
+                >
+                  {{ commandAckLabel(detailTarget.commandAck) }}
+                </v-chip>
+              </div>
+              <template v-if="detailTarget.commandAck?.message">
+                <div class="detail-label">失败原因</div>
+                <div class="detail-value detail-sub">{{ detailTarget.commandAck.message }}</div>
+              </template>
+            </div>
+          </template>
+
           <v-expansion-panels class="mt-4" variant="accordion">
             <v-expansion-panel title="原始 User-Agent">
               <v-expansion-panel-text>
@@ -258,6 +302,10 @@ interface DeviceRow {
   online: boolean
   /** 已下发但设备还没上线的远程卸载指令（后台显示「待送达」） */
   uninstallPending?: boolean
+  /** 最近一次指令下发时间（内存态，服务重启后清空） */
+  commandDispatchedAt?: string | null
+  /** 最近一次指令回执：失败时 message 是设备给出的原因 */
+  commandAck?: { status: 'done' | 'unsupported' | 'failed' | string; message: string | null; at: number } | null
 }
 
 interface DeviceListResult {
@@ -513,6 +561,47 @@ const uaInfo = computed(() => parseUserAgent(detailTarget.value?.userAgent))
 function openDetail(item: DeviceRow): void {
   detailTarget.value = item
   detailOpen.value = true
+}
+
+/** 远程卸载回执的展示文案：失败时把设备给的原因直接说清楚 */
+function commandAckLabel(ack: DeviceRow['commandAck']): string {
+  if (!ack) return '已下发，等待设备回执'
+  if (ack.status === 'done') return '设备已开始卸载'
+  if (ack.status === 'unsupported') return '设备不支持（网页端）'
+  return '设备执行失败'
+}
+
+/** 远程卸载要求桌面端至少 v1.1.7：更早的版本没有接收卸载指令的代码，点了也白点 */
+const REMOTE_UNINSTALL_MIN_VERSION = '1.1.7'
+
+/** 版本号逐段比较（不足补 0） */
+function compareVersionText(a: string, b: string): number {
+  const pa = a.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const pb = b.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/** 这台设备能否接受远程卸载指令（桌面端且版本足够） */
+function remoteUninstallReady(item: DeviceRow): boolean {
+  const info = parseUserAgent(item.userAgent)
+  if (info.runtime !== '桌面客户端') return false
+  return compareVersionText(info.version, REMOTE_UNINSTALL_MIN_VERSION) >= 0
+}
+
+function remoteUninstallHint(item: DeviceRow): string {
+  const info = parseUserAgent(item.userAgent)
+  if (info.runtime !== '桌面客户端') return '这台设备不是桌面客户端（网页端打开），无法远程卸载'
+  return '当前版本 v' + info.version + '，远程卸载需要 v' + REMOTE_UNINSTALL_MIN_VERSION + ' 或更高版本，请先升级'
+}
+
+function commandAckColor(ack: DeviceRow['commandAck']): string {
+  if (!ack) return 'warning'
+  if (ack.status === 'done') return 'success'
+  return 'error'
 }
 
 async function copyUa(): Promise<void> {

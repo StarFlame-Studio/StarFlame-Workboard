@@ -1,24 +1,34 @@
 /**
- * 后台远程卸载：静默运行 NSIS 卸载程序并退出应用。
+ * 后台远程卸载：静默运行 NSIS 卸载程序并退出应用，设备上不需要任何人操作。
  *
- * 卸载器位置按以下顺序探测：
- * 1. 注册表 QuietUninstallString / UninstallString（HKCU / HKLM，含 WOW6432Node）——最可靠；
- * 2. 程序所在目录下的「Uninstall 星焰作业板.exe」；
- * 3. 程序所在目录下的 Uninstall.exe。
+ * 卸载器位置按以下顺序探测（历史版本曾把注册表键写成 appId，而 NSIS 实际写的是
+ * 由 appId 派生的 GUID，导致定位失败、远程卸载报「未找到卸载程序」）：
+ * 1. HKCU\Software\<GUID> 的 InstallLocation（安装时写入的安装目录），到目录里找 Uninstall*.exe；
+ * 2. 枚举 HKCU / HKLM（含 WOW6432Node）Uninstall 根下的子键，按 DisplayName 匹配「星焰作业板」，
+ *    读取 QuietUninstallString / UninstallString；
+ * 3. 程序所在目录下的 Uninstall*.exe（可执行文件名是 ASCII 的 StarflameWorkboard）。
  *
- * 整个过程不需要设备上的人做任何操作：收到后台指令后直接安排静默卸载并退出应用。
- *
- * 注意：不能传 --force-run（那是更新安装器用的参数，会让卸载完成后重新拉起应用）。
+ * 注意：不能传 --force-run / --updated（那是静默更新用的参数，会让卸载完成后重新拉起应用）。
  */
 import { app } from 'electron'
 import { execFileSync, spawn } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { setQuitting } from './appState'
+import {
+  buildSilentArgs,
+  pickRegistryValue,
+  pickUninstallerFile,
+  pickUninstallKeys,
+  splitCommand,
+  type UninstallCommand,
+} from './uninstallLocate'
 
-const APP_ID = 'cn.yanhuoyiyou.starflame.workboard'
-const PRODUCT_NAME = '星焰作业板'
-/** 提交卸载后等待应用退出的时间：留够渲染进程把执行回执发回服务端 */
+/** electron-builder 为 appId 生成的 NSIS 安装键 GUID（UUID v5，固定值，不会随版本变化） */
+const NSIS_APP_GUID = '82838bdf-0d41-529f-bdfe-8c59998432ee'
+/** 卸载器 DisplayName 里出现的关键词，用于在注册表里认出本产品 */
+const UNINSTALL_KEYWORDS = ['星焰作业板', 'StarflameWorkboard', 'Starflame']
+
 const QUIT_DELAY_MS = 1200
 /** 卸载器在应用完全退出后再启动的等待秒数（给进程退出与文件句柄释放留时间） */
 const DELAY_BEFORE_UNINSTALL_SEC = 5
@@ -38,127 +48,144 @@ function log(line: string): void {
   }
 }
 
-/**
- * 后台拉起一个完全脱离本进程的实例（不继承句柄、不阻塞退出）。
- * 返回是否成功创建进程。
- */
-function spawnDetached(args: string[], file = 'cmd.exe'): boolean {
-  try {
-    const child = spawn(file, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    })
-    child.on('error', (err) => log('拉起进程失败：' + String(err)))
-    child.unref()
-    return true
-  } catch (err) {
-    log('拉起进程异常：' + String(err))
-    return false
-  }
-}
-
-/** 把注册表里的 UninstallString 拆成可执行文件与参数 */
-function splitCommand(raw: string): { exe: string; args: string[] } | null {
-  const text = raw.trim()
-  if (!text) return null
-  if (text.startsWith('"')) {
-    const end = text.indexOf('"', 1)
-    if (end < 0) return null
-    const exe = text.slice(1, end)
-    const rest = text.slice(end + 1).trim()
-    return { exe, args: rest ? rest.split(/\s+/) : [] }
-  }
-  // 未加引号：路径可能含空格，取到 .exe 为止
-  const lower = text.toLowerCase()
-  const idx = lower.indexOf('.exe')
-  if (idx < 0) return { exe: text, args: [] }
-  const exe = text.slice(0, idx + 4)
-  const rest = text.slice(idx + 4).trim()
-  return { exe, args: rest ? rest.split(/\s+/) : [] }
-}
-
-function readRegistryValue(valueName: string): string | null {
+/** 跑一次 reg query；键或值不存在时返回 null（不抛错） */
+function queryRegistry(args: string[]): string | null {
   if (process.platform !== 'win32') return null
-  const roots = ['HKCU', 'HKLM']
-  const paths = [
-    'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + APP_ID,
-    'Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + APP_ID,
+  try {
+    return execFileSync('reg', ['query', ...args], { encoding: 'utf8', timeout: 5000, windowsHide: true })
+  } catch {
+    return null
+  }
+}
+
+/** 用注册表里的卸载命令构造卸载器信息（文件必须存在） */
+function fromRegistryString(raw: string | null): UninstallCommand | null {
+  if (!raw) return null
+  const parsed = splitCommand(raw)
+  if (!parsed || !existsSync(parsed.exe)) {
+    if (parsed) log('注册表记录的卸载器不存在：' + parsed.exe)
+    return null
+  }
+  return parsed
+}
+
+/** 安装目录（从安装时写入的 InstallLocation 或可执行文件目录推断） */
+function resolveInstallDirs(): string[] {
+  const dirs: string[] = []
+  const fromRegistry = queryRegistry(['HKCU\\Software\\' + NSIS_APP_GUID, '/v', 'InstallLocation'])
+  const location = fromRegistry ? pickRegistryValue(fromRegistry, 'InstallLocation') : null
+  if (location) dirs.push(location)
+  try {
+    dirs.push(dirname(app.getPath('exe')))
+  } catch {
+    // 极端情况下取不到 exe 路径
+  }
+  return [...new Set(dirs.filter(Boolean))]
+}
+
+/** 在安装目录里找 Uninstall*.exe（文件名以可执行文件名为准，是 ASCII） */
+function uninstallerInDir(dir: string): UninstallCommand | null {
+  try {
+    const files = readdirSync(dir)
+    const exeName = (() => {
+      try {
+        return app.getPath('exe').split(/[\\/]/).pop()!.replace(/\.exe$/i, '')
+      } catch {
+        return 'StarflameWorkboard'
+      }
+    })()
+    const name = pickUninstallerFile(files, exeName)
+    if (name) return { exe: join(dir, name), args: [] }
+  } catch {
+    // 目录不可读，交给下一条路径
+  }
+  return null
+}
+
+/** 在注册表 Uninstall 根下按 DisplayName 枚举，找到本产品的卸载命令 */
+function fromUninstallRoots(): UninstallCommand | null {
+  const roots = [
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
   ]
   for (const root of roots) {
-    for (const sub of paths) {
-      try {
-        const out = execFileSync('reg', ['query', root + '\\' + sub, '/v', valueName], {
-          encoding: 'utf8',
-          timeout: 5000,
-          windowsHide: true,
-        })
-        const match = new RegExp(valueName + '\\s+REG_(?:EXPAND_)?SZ\\s+(.+)').exec(out)
-        if (match && match[1].trim()) return match[1].trim()
-      } catch {
-        // 该注册表位置/键值不存在，继续尝试下一个
+    const listed = queryRegistry([root, '/s', '/v', 'DisplayName'])
+    if (!listed) continue
+    for (const key of pickUninstallKeys(listed, UNINSTALL_KEYWORDS)) {
+      // 优先静默命令，避免卸载器弹出交互界面
+      for (const valueName of ['QuietUninstallString', 'UninstallString']) {
+        const raw = queryRegistry([key, '/v', valueName])
+        const found = raw ? fromRegistryString(pickRegistryValue(raw, valueName)) : null
+        if (found) return found
       }
     }
   }
   return null
 }
 
-function readRegistryUninstallString(): string | null {
-  // NSIS 会同时写 UninstallString（不带 /S）与 QuietUninstallString（自带 /S）：
-  // 优先用静默那条，避免卸载器弹出交互界面
-  return readRegistryValue('QuietUninstallString') ?? readRegistryValue('UninstallString')
+/** 找到卸载程序；找不到返回 null */
+export function locateUninstaller(): UninstallCommand | null {
+  for (const dir of resolveInstallDirs()) {
+    const found = uninstallerInDir(dir)
+    if (found) return found
+  }
+  const fromRegistry = fromUninstallRoots()
+  if (fromRegistry) return fromRegistry
+  log('未找到卸载程序，已尝试目录：' + resolveInstallDirs().join(', '))
+  return null
 }
 
-/** 找到卸载程序；找不到返回 null */
-export function locateUninstaller(): { exe: string; args: string[] } | null {
-  const raw = readRegistryUninstallString()
-  if (raw) {
-    const parsed = splitCommand(raw)
-    if (parsed && existsSync(parsed.exe)) return parsed
-    log('注册表卸载器不存在：' + (parsed ? parsed.exe : raw))
+/**
+ * 写一个临时脚本，由它延时后用 start 拉起卸载器。
+ * 用脚本而不是拼 cmd 命令串，是为了彻底避开引号嵌套问题（路径里可能含空格与中文）。
+ * 延时不能用 timeout.exe：本进程 stdio 全为 ignore、没有控制台，timeout 会立刻报
+ * 「输入重定向不受支持」而秒退，卸载器就会在应用还活着时启动。ping 不需要控制台。
+ */
+function scheduleUninstaller(found: UninstallCommand, args: string[]): boolean {
+  if (process.platform !== 'win32') return false
+  const quoted = '"' + found.exe.replace(/"/g, '') + '"' + (args.length ? ' ' + args.join(' ') : '')
+  const script = [
+    '@echo off',
+    'ping -n ' + String(DELAY_BEFORE_UNINSTALL_SEC + 1) + ' 127.0.0.1 >nul',
+    'start "" ' + quoted,
+    'del "%~f0" >nul 2>nul',
+    '',
+  ].join('\r\n')
+  try {
+    const scriptPath = join(app.getPath('temp'), 'starflame-uninstall-' + Date.now() + '.cmd')
+    writeFileSync(scriptPath, script, 'utf8')
+    const child = spawn('cmd.exe', ['/d', '/s', '/c', scriptPath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+    child.on('error', (err) => log('拉起卸载脚本失败：' + String(err)))
+    child.unref()
+    return true
+  } catch (err) {
+    log('写卸载脚本失败：' + String(err))
+    return false
   }
-
-  const installDir = dirname(app.getPath('exe'))
-  const candidates = [
-    join(installDir, 'Uninstall ' + PRODUCT_NAME + '.exe'),
-    join(installDir, 'Uninstall.exe'),
-  ]
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return { exe: candidate, args: [] }
-  }
-  log('未找到卸载程序，安装目录：' + installDir)
-  return null
 }
 
 /** 静默卸载并退出应用 */
 export function uninstallSelf(): UninstallResult {
   const found = locateUninstaller()
-  if (!found) return { ok: false, message: '未找到卸载程序，请手动卸载' }
+  if (!found) {
+    // 把安装目录带回回执：后台设备页能直接看到这台机器上找的是哪个目录，便于排查
+    let dir = ''
+    try {
+      dir = dirname(app.getPath('exe'))
+    } catch {
+      dir = ''
+    }
+    return { ok: false, message: ('未找到卸载程序，安装目录：' + dir).slice(0, 200) }
+  }
 
-  const installDir = dirname(found.exe)
-  const args = [...found.args]
-  if (!args.includes('/S')) args.push('/S')
-  // NSIS 静默卸载必须显式给出安装目录，否则卸载器复制到临时目录后找不到自身资源
-  if (!args.some((arg) => arg.startsWith('_?='))) args.push('_?=' + installDir)
-
-  // 先让应用自己退出，再由系统延时启动卸载器：
-  // 卸载器一旦发现应用还在运行，会尝试强杀进程，容易留下删不掉的文件。
-  //
-  // 延时不能用 timeout.exe：本进程 stdio 全为 ignore、没有控制台，
-  // timeout 会立刻报「输入重定向不受支持」而秒退，卸载器就会在应用还活着时启动。
-  // ping 不需要控制台，是 Windows 上最稳的无人值守延时方式。
-  const quoted = [found.exe, ...args].map((part) => '"' + part.replace(/"/g, '') + '"').join(' ')
-  const delayPings = String(DELAY_BEFORE_UNINSTALL_SEC + 1)
-  const command = 'ping -n ' + delayPings + ' 127.0.0.1 >nul & ' + quoted
-  const launched = spawnDetached(['/d', '/s', '/c', command])
-  if (!launched) {
-    // 极小概率下 cmd 不可用：退回到 PowerShell 的进程启动方式
-    const psArgs = ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command',
-      'Start-Sleep -Seconds ' + DELAY_BEFORE_UNINSTALL_SEC + "; Start-Process -FilePath '" +
-      found.exe.replace(/'/g, "''") + "'" +
-      (args.length ? " -ArgumentList '" + args.join(' ').replace(/'/g, "''") + "'" : '')]
-    if (!spawnDetached(psArgs, 'powershell.exe')) {
-      log('启动卸载程序失败：cmd 与 powershell 均不可用')
+  const args = buildSilentArgs(found.args)
+  if (!process.env.SF_UNINSTALL_DRY_RUN) {
+    if (!scheduleUninstaller(found, args)) {
       return { ok: false, message: '启动卸载程序失败' }
     }
   }

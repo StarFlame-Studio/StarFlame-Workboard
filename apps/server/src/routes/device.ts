@@ -230,7 +230,8 @@ router.post('/heartbeat', writeLimiter, requireDevice, async (req, res, next) =>
 router.post('/command-ack', writeLimiter, validateBody(deviceCommandAckSchema), requireDevice, async (req, res, next) => {
   try {
     const input = req.validated as { id?: string; type: string; status: string; message?: string }
-    ackDeviceCommand(req.device!.id, input.status)
+    // message 是设备给出的失败原因（如「未找到卸载程序，无法自动卸载」），后台设备页直接展示
+    ackDeviceCommand(req.device!.id, input.status, input.message ?? null)
     ok(res, { received: true, id: input.id ?? null, status: input.status })
   } catch (error) {
     next(error)

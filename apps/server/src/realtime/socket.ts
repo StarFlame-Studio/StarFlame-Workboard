@@ -181,6 +181,9 @@ export function disconnectDeviceSockets(deviceIds: string[]): number {
   return closed
 }
 
+/** 最近一次指令下发时间：后台据此区分「已下发但设备还没回执」与「从未下发」 */
+const lastCommandDispatch = new Map<string, number>()
+
 /**
  * 向指定设备的实时连接下发一条指令（如远程卸载）。
  * 与 disconnectDeviceSockets 不同，这里不主动断开连接，由客户端自行处理。
@@ -200,6 +203,7 @@ export function sendDeviceCommand(
     socket.emit('device.command', payload)
     sent += 1
   }
+  if (sent > 0) lastCommandDispatch.set(deviceId, payload.at)
   return sent
 }
 
@@ -252,25 +256,43 @@ function flushPendingCommands(deviceId: string): number {
   const sent = sendDeviceCommand(deviceId, entry.command)
   if (sent > 0) {
     logger.info({ deviceId, type: entry.command.type }, 'pending device command flushed on connect')
+    // 补发成功即视为已下发：保留一份时间，后台据此显示「已下发、等待回执」
+    lastCommandDispatch.set(deviceId, Date.now())
   }
   return sent
 }
 
-/** 设备对指令的执行回执（目前只区分 done / unsupported / failed），仅用于清空在途队列与排查 */
-const lastCommandAck = new Map<string, { status: string; at: number }>()
+/**
+ * 设备对指令的执行回执（done / unsupported / failed），仅用于清空在途队列与后台排查。
+ * 失败时把设备给出的原因一起记下来：远程卸载「没生效」时，后台能直接看到是
+ * 「未找到卸载程序」还是「启动卸载程序失败」，不必再翻设备日志。
+ */
+const lastCommandAck = new Map<string, { status: string; message: string | null; at: number }>()
 
-/** 记录设备回执：无论成功与否都清掉在途指令，避免设备重连后被反复下发 */
-export function ackDeviceCommand(deviceId: string, status: string): void {
+/** 记录回执：无论成功与否都清掉在途指令，避免设备重连后被反复下发 */
+export function ackDeviceCommand(deviceId: string, status: string, message?: string | null): void {
   if (!deviceId) return
   pendingCommands.delete(deviceId)
-  lastCommandAck.set(deviceId, { status, at: Date.now() })
-  logger.info({ deviceId, status }, 'device command ack')
+  const reason = typeof message === 'string' && message.trim() ? message.trim().slice(0, 200) : null
+  lastCommandAck.set(deviceId, { status, message: reason, at: Date.now() })
+  logger.info({ deviceId, status, message: reason }, 'device command ack')
 }
 
 /** 设备最近一次指令回执状态（没有回执返回 null） */
 export function deviceCommandAck(deviceId: string): string | null {
   const entry = lastCommandAck.get(deviceId)
   return entry ? entry.status : null
+}
+
+/** 后台展示用的完整指令状态：最近一次下发时间 + 最近一次回执 */
+export function deviceCommandState(deviceId: string): {
+  dispatchedAt: number | null
+  ack: { status: string; message: string | null; at: number } | null
+} {
+  return {
+    dispatchedAt: lastCommandDispatch.get(deviceId) ?? null,
+    ack: lastCommandAck.get(deviceId) ?? null,
+  }
 }
 
 export function getIo(): Server | null {
