@@ -17,6 +17,7 @@ export default defineConfig({
         overview: html('index'),
         classes: html('classes'),
         class: html('class'),
+        notices: html('notices'),
         users: html('users'),
         devices: html('devices'),
         audit: html('audit'),

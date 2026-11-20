@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const dist = path.resolve(import.meta.dirname, '../dist')
-const pages = ['classes', 'class', 'users', 'devices', 'audit', 'login']
+const pages = ['classes', 'class', 'notices', 'users', 'devices', 'audit', 'login']
 
 for (const name of pages) {
   const source = path.join(dist, name + '.html')
