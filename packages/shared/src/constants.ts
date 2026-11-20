@@ -4,9 +4,9 @@ export const API_PREFIX = '/api'
  * 产品版本号：全站唯一来源（网页端页脚、设置「关于」、桌面端窗口与安装器都读这里）。
  * 升级版本时只改这一处 + apps/desktop/package.json 的 version。
  */
-export const APP_VERSION = '1.1.6'
+export const APP_VERSION = '1.1.7'
 /** 数字版本号（用于 Electron / Android 风格的整数比较） */
-export const APP_VERSION_CODE = 116
+export const APP_VERSION_CODE = 117
 
 export const HEADER_DEVICE_TOKEN = 'x-device-token'
 export const HEADER_REQUEST_ID = 'x-request-id'

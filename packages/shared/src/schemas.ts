@@ -41,6 +41,14 @@ export const deviceLoginSchema = z.object({
   uuid: z.string().uuid('设备标识无效').optional(),
 })
 
+/** 设备对远程指令的执行回执（目前仅用于「卸载指令已送达」这类确认） */
+export const deviceCommandAckSchema = z.object({
+  id: z.string().trim().max(64).optional(),
+  type: z.string().trim().min(1).max(32),
+  status: z.enum(['done', 'unsupported', 'failed']),
+  message: z.string().trim().max(200).optional(),
+})
+
 export const homeworkUpsertSchema = z.object({
   subjectId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD'),

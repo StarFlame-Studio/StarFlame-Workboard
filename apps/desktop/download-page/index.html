@@ -176,40 +176,50 @@
         <b>不知道选哪个？用这个</b>
         <span>一键安装引导会自己判断系统版本与位数，自动下载并启动正确的安装包。约 76 KB，需要联网。</span>
       </div>
-      <a class="btn" href="./StarflameWorkboard-Setup-1.1.6.exe">一键安装（推荐新手）</a>
+      <a class="btn" href="./StarflameWorkboard-Setup-1.1.7.exe">一键安装（推荐新手）</a>
     </div>
 
     <div class="grid">
       <div class="card recommend" id="card-win10-x64">
         <h2>Win10 / 11 · 64 位 <span class="tag">推荐</span></h2>
         <p>适用于绝大多数教室一体机与办公电脑（Windows 10 / 11，64 位）。</p>
-        <div class="meta">安装包约 86 MB · 版本 1.1.6</div>
-        <a class="btn" href="./win10-x64/StarflameWorkboard-1.1.6-x64.exe">下载安装包</a>
-        <a class="btn secondary" href="./win10-x64/StarflameWorkboard-1.1.6-x64.zip">下载便携版（免安装）</a>
+        <div class="meta">安装包约 86 MB · 版本 1.1.7</div>
+        <a class="btn" href="./win10-x64/StarflameWorkboard-1.1.7-x64.exe">下载安装包</a>
+        <a class="btn secondary" href="./win10-x64/StarflameWorkboard-1.1.7-x64.zip">下载便携版（免安装）</a>
       </div>
 
       <div class="card" id="card-win10-ia32">
         <h2>Win10 / 11 · 32 位</h2>
         <p>适用于 32 位的 Win10 / Win11 老一体机（系统属性里显示「32 位操作系统」）。</p>
-        <div class="meta">安装包约 81 MB · 版本 1.1.6</div>
-        <a class="btn" href="./win10-ia32/StarflameWorkboard-1.1.6-ia32.exe">下载安装包</a>
-        <a class="btn secondary" href="./win10-ia32/StarflameWorkboard-1.1.6-ia32.zip">下载便携版（免安装）</a>
+        <div class="meta">安装包约 81 MB · 版本 1.1.7</div>
+        <a class="btn" href="./win10-ia32/StarflameWorkboard-1.1.7-ia32.exe">下载安装包</a>
+        <a class="btn secondary" href="./win10-ia32/StarflameWorkboard-1.1.7-ia32.zip">下载便携版（免安装）</a>
       </div>
 
       <div class="card" id="card-win7">
         <h2>Win7 / 8 / 8.1 通用版</h2>
         <p>适用于 Windows 7 SP1 及以上的老系统，32 位与 64 位系统都能安装。</p>
-        <div class="meta">安装包约 70 MB · 版本 1.1.6</div>
-        <a class="btn" href="./win7-ia32/StarflameWorkboard-1.1.6-ia32.exe">下载安装包</a>
-        <a class="btn secondary" href="./win7-ia32/StarflameWorkboard-1.1.6-ia32.zip">下载便携版（免安装）</a>
+        <div class="meta">安装包约 70 MB · 版本 1.1.7</div>
+        <a class="btn" href="./win7-ia32/StarflameWorkboard-1.1.7-ia32.exe">下载安装包</a>
+        <a class="btn secondary" href="./win7-ia32/StarflameWorkboard-1.1.7-ia32.zip">下载便携版（免安装）</a>
       </div>
     </div>
 
 
     <div class="history">
       <b>历史版本</b>
-      <span>下表为 1.0.0 – 1.1.5 的更新内容。安装包归档在 GitHub 与 Gitee 的发行版页面（GitHub 保留全部通道与版本，Gitee 受 1 GB 附件配额限制，早期版本只保留安装引导程序与增量更新文件）。</span>
+      <span>下表为 1.0.0 – 1.1.6 的更新内容。安装包归档在 GitHub 与 Gitee 的发行版页面（GitHub 保留全部通道与版本，Gitee 受 1 GB 附件配额限制，早期版本只保留安装引导程序与增量更新文件）。</span>
       <ul>
+        <li>
+          <div class="hist-head">
+            <b>v1.1.6</b><span class="hist-date">2026-11-20</span>
+          </div>
+          <p>预配链接支持打开即自动登录并直达作业看板；新增课铃偏移时间调整；通知支持「弹窗提醒」开关；后台新增通知管理与远程卸载</p>
+          <div class="hist-links">
+            <a href="https://github.com/StarFlame-Studio/StarFlame-Workboard/releases/tag/v1.1.6" target="_blank" rel="noopener">GitHub 发行版与安装包</a>
+            <a href="https://gitee.com/starflame-studio/starflame-workboard/releases/tag/v1.1.6" target="_blank" rel="noopener">Gitee 发行版</a>
+          </div>
+        </li>
         <li>
           <div class="hist-head">
             <b>v1.1.5</b><span class="hist-date">2026-11-19</span>
@@ -305,14 +315,14 @@
     <div class="fix">
       <b>应用内更新失败，提示「不是由应用所有者签名」？</b>
       <span>
-        现象：检测到 1.1.6，下载完成后报「not signed by the application owner / 不是由应用所有者签名」。
+        现象：检测到 1.1.7，下载完成后报「not signed by the application owner / 不是由应用所有者签名」。
         原因是这台电脑还没把「焰火工作室」的代码签名证书加入受信任根。<br />
         下载下面的 <code>install-cert.bat</code> 与 <code>starflame.cer</code>，放在同一个文件夹里，双击 bat 运行即可
         （<b>无需管理员权限</b>，只写入当前用户；若以管理员运行则对全机生效）。脚本会自动清理失败的更新缓存，
         然后回到「星焰作业板 → 设置 → 关于」点「检查更新」，这次会正常下载并自动安装。<br />
         脚本失败时手动导入：右键 <code>starflame.cer</code> → 安装证书 → 当前用户 →
         「将所有的证书都放入下列存储」→ 浏览 → 受信任的根证书颁发机构。<br />
-        也可以直接用上面的 1.1.6 安装包覆盖安装，已绑定的班级与本地缓存都不会丢。
+        也可以直接用上面的 1.1.7 安装包覆盖安装，已绑定的班级与本地缓存都不会丢。
       </span>
       <div class="fix-links">
         <a class="btn secondary" href="./install-cert.bat">下载证书一键导入（.bat）</a>
@@ -321,7 +331,7 @@
     </div>
 
     <footer>
-      焰火工作室 · 星焰作业板 1.1.6<br />
+      焰火工作室 · 星焰作业板 1.1.7<br />
       <a href="/">返回网页版</a>
     </footer>
 
