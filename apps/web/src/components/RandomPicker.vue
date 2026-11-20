@@ -21,11 +21,15 @@
             <v-btn :disabled="count >= maxCount" color="primary" icon="mdi-plus" size="large" variant="tonal" @click="count < maxCount && count++" />
           </div>
 
-          <div class="d-flex justify-center mb-6">
+          <div class="d-flex justify-center mb-4">
             <v-btn-toggle v-model="mode" color="primary" divided mandatory variant="outlined">
-              <v-btn prepend-icon="mdi-account" value="name" size="small">姓名模式</v-btn>
+              <v-btn :disabled="!hasRoster" prepend-icon="mdi-account" value="name" size="small">姓名模式</v-btn>
               <v-btn prepend-icon="mdi-card-account-details" value="number" size="small">学号模式</v-btn>
             </v-btn-toggle>
+          </div>
+
+          <div v-if="!hasRoster" class="text-body-2 text-medium-emphasis mb-4">
+            还没有录入学生名单，已自动切换到学号模式，直接按学号范围抽取。
           </div>
 
           <v-btn
@@ -45,7 +49,8 @@
           <div v-if="pool.length === 0" class="text-body-2 text-error mb-2">没有可抽取的学生，请调整过滤选项</div>
 
           <div class="d-flex align-center justify-center text-caption text-medium-emphasis mb-4">
-            当前可抽取学生: {{ pool.length }}人
+            <template v-if="mode === 'number'">当前学号范围: {{ numberRangeLabel }}</template>
+            <template v-else>当前可抽取学生: {{ pool.length }}人</template>
             <v-btn class="ml-1" icon="mdi-information-outline" size="x-small" variant="text" @click="showPool = !showPool" />
           </div>
 
@@ -53,7 +58,7 @@
             {{ pool.map((item) => item.name).join('、') || '无' }}
           </div>
 
-          <div class="d-flex justify-center flex-wrap" style="gap: 8px">
+          <div v-if="mode === 'name'" class="d-flex justify-center flex-wrap" style="gap: 8px">
             <v-chip :color="includeLate ? 'secondary' : 'default'" :variant="includeLate ? 'flat' : 'outlined'" size="small" @click="includeLate = !includeLate">
               <v-icon start size="small">mdi-clock-alert-outline</v-icon>
               包含迟到学生
@@ -144,7 +149,7 @@ const visible = computed({
 })
 
 const count = ref(clampCount(props.defaultCount))
-const mode = ref<'name' | 'number'>(props.defaultMode === 'number' ? 'number' : 'name')
+const mode = ref<'name' | 'number'>(resolveInitialMode())
 const includeLate = ref(!props.defaultExcludeLate)
 const excludeAbsent = ref(props.defaultExcludeAbsent)
 const excludeExcluded = ref(props.defaultExcludeExcluded)
@@ -173,6 +178,22 @@ const namePool = computed(() => {
   })
 })
 
+/** 是否已录入学生名单：没有名单时姓名池为空，只能按学号范围抽 */
+const hasRoster = computed(() => props.students.length > 0)
+
+/** 没有名单时强制学号模式，有名单时按设置里的默认模式 */
+function resolveInitialMode(): 'name' | 'number' {
+  if (props.students.length === 0) return 'number'
+  return props.defaultMode === 'number' ? 'number' : 'name'
+}
+
+/** 学号模式的区间文案，例如「1 - 60」 */
+const numberRangeLabel = computed(() => {
+  const min = Math.min(props.minNumber, props.maxNumber)
+  const max = Math.max(props.minNumber, props.maxNumber)
+  return min + ' - ' + max
+})
+
 const pool = computed(() => (mode.value === 'number' ? numberPool.value : namePool.value))
 
 const maxCount = computed(() => Math.max(1, pool.value.length))
@@ -189,7 +210,7 @@ watch(
     if (open) {
       results.value = []
       spinning.value = false
-      mode.value = props.defaultMode === 'number' ? 'number' : 'name'
+      mode.value = resolveInitialMode()
       excludeAbsent.value = props.defaultExcludeAbsent
       excludeExcluded.value = props.defaultExcludeExcluded
       includeLate.value = !props.defaultExcludeLate
@@ -201,6 +222,18 @@ watch(
 // 切换模式 / 池子变化后，人数不能超过池子容量
 watch([mode, maxCount], () => {
   count.value = clampCount(count.value, maxCount.value)
+})
+
+// 名单被清空或还没同步进来时，自动切到学号模式，避免姓名池为 0 无法抽取
+watch(hasRoster, (has) => {
+  if (!has) {
+    mode.value = 'number'
+    return
+  }
+  if (mode.value === 'number' && props.defaultMode !== 'number') {
+    // 名单恢复后回到设置里的默认模式
+    mode.value = 'name'
+  }
 })
 
 function pick(): PickerStudent[] {
