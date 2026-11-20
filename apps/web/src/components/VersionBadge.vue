@@ -52,9 +52,7 @@
           />
           <p v-if="updateHint" class="update-hint">{{ updateHint }}</p>
 
-          <ul v-if="currentEntry" class="current-items">
-            <li v-for="(item, i) in currentEntry.items" :key="i">{{ item }}</li>
-          </ul>
+          <ChangelogBody v-if="currentEntry" class="current-items" :entry="currentEntry" />
 
           <v-alert
             v-if="!isDesktop"
@@ -100,9 +98,7 @@
             </v-expansion-panel-title>
             <v-expansion-panel-text>
               <p class="panel-summary">{{ entry.summary }}</p>
-              <ul class="panel-items">
-                <li v-for="(item, i) in entry.items" :key="i">{{ item }}</li>
-              </ul>
+              <ChangelogBody class="panel-items" compact :entry="entry" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -120,6 +116,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
+import ChangelogBody from '@/components/ChangelogBody.vue'
 import { CHANGELOG, compareVersion, findChangelog, type ChangelogEntry } from '@/lib/changelog'
 import {
   appInfo,
@@ -317,18 +314,12 @@ async function doRollback(version: string): Promise<void> {
   line-height: 1.7;
 }
 
-.current-items,
-.panel-items {
-  margin: 10px 0 0;
-  padding-left: 18px;
-  color: var(--text-2, #4a423c);
-  font-size: 13px;
-  line-height: 1.9;
+.current-items {
+  margin-top: 10px;
 }
 
-.current-items li::marker,
-.panel-items li::marker {
-  color: var(--brand-1, #ff8a1f);
+.panel-items {
+  margin-top: 8px;
 }
 
 .update-hint {
