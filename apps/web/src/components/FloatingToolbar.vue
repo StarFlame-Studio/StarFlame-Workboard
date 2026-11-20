@@ -20,7 +20,7 @@
             variant="text"
             @click="$emit('zoom', 'up')"
           />
-          <v-menu :close-on-content-click="false" location="top">
+          <v-menu v-model="menuOpen" :close-on-content-click="false" location="top">
             <template #activator="{ props }">
               <v-btn v-ripple v-bind="props" class="toolbar-btn" icon="mdi-calendar" title="选择日期" variant="text" />
             </template>
@@ -94,9 +94,14 @@ const emit = defineEmits<{
 }>()
 
 const isExpanded = ref(false)
+const menuOpen = ref(false)
 
 function handleDateSelect(value: unknown): void {
+  if (value === null || value === undefined) return
   emit('date-select', value)
+  // 选定日期后主动收起日历：菜单叠在看板上，留着会挡住上下一天等按钮，
+  // 用户会误以为「日期切换不了」
+  menuOpen.value = false
 }
 </script>
 
