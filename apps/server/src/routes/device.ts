@@ -10,6 +10,7 @@ import { writeAudit } from '../lib/audit.js'
 import { bindLimiter, clientIp, writeLimiter } from '../middleware/rateLimit.js'
 import { validateBody } from '../middleware/validate.js'
 import { requireDevice } from '../middleware/auth.js'
+import { forgetDeviceActivity } from '../services/devicePresence.js'
 
 const router = Router()
 
@@ -225,6 +226,7 @@ router.post('/heartbeat', writeLimiter, requireDevice, async (req, res, next) =>
 router.post('/logout', writeLimiter, requireDevice, async (req, res, next) => {
   try {
     await db.update(devices).set({ status: 'revoked', tokenHash: null }).where(eq(devices.id, req.device!.id))
+    forgetDeviceActivity(req.device!.id)
     await writeAudit({
       actorType: 'device',
       actorId: req.device!.id,

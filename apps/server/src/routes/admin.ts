@@ -45,7 +45,7 @@ import { clientIp, readLimiter, writeLimiter } from '../middleware/rateLimit.js'
 import { requireAdmin, requireUser } from '../middleware/auth.js'
 import { validateBody } from '../middleware/validate.js'
 import { seedSubjects } from '../services/classService.js'
-import { isDeviceOnline } from '../services/devicePresence.js'
+import { deviceActivityAt, forgetDeviceActivity, isDeviceOnline } from '../services/devicePresence.js'
 import { broadcastChange, disconnectDeviceSockets } from '../realtime/socket.js'
 
 const router = Router()
@@ -721,10 +721,20 @@ router.get('/devices', async (req, res, next) => {
       .limit(DEVICE_LIST_SCAN_LIMIT)
 
     const now = Date.now()
-    const decorated = rows.map((row) => ({
-      ...row,
-      online: isDeviceOnline(row.id, row.lastSeenAt, now),
-    }))
+    // last_seen_at 只有心跳/登录/连接时才写库，内存里的活动时间可能更新；
+    // 展示时取较新的那个，避免「在线」却显示十几分钟前的自相矛盾。
+    const decorated = rows.map((row) => {
+      const activityAt = deviceActivityAt(row.id)
+      const effectiveLastSeen =
+        activityAt !== null && (!row.lastSeenAt || activityAt > row.lastSeenAt.getTime())
+          ? new Date(activityAt)
+          : row.lastSeenAt
+      return {
+        ...row,
+        lastSeenAt: effectiveLastSeen,
+        online: isDeviceOnline(row.id, row.lastSeenAt, now),
+      }
+    })
     const onlineCount = decorated.filter((row) => row.online).length
     const matched =
       statusFilter === 'online'
@@ -754,6 +764,8 @@ router.delete('/devices/:id', writeLimiter, async (req, res, next) => {
     const rows = await db.select().from(devices).where(eq(devices.id, deviceId)).limit(1)
     if (!rows[0]) throw notFound('设备不存在')
     await db.update(devices).set({ status: 'revoked', tokenHash: null }).where(eq(devices.id, deviceId))
+    // 清掉内存活动痕迹，否则吊销后仍会在 3 分钟内显示在线
+    forgetDeviceActivity(deviceId)
     const disconnected = disconnectDeviceSockets([deviceId])
     await writeAudit({
       actorType: 'user',
@@ -797,6 +809,7 @@ router.post('/devices/revoke-batch', writeLimiter, async (req, res, next) => {
 
     const activeIds = active.map((row) => row.id)
     await db.update(devices).set({ status: 'revoked', tokenHash: null }).where(inArray(devices.id, activeIds))
+    for (const id of activeIds) forgetDeviceActivity(id)
     const disconnected = disconnectDeviceSockets(activeIds)
     for (const row of active) {
       await writeAudit({

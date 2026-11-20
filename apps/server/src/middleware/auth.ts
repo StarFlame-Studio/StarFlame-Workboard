@@ -5,6 +5,7 @@ import { db } from '../db/index.js'
 import { devices, users } from '../db/schema.js'
 import { HttpError, forbidden, unauthorized } from '../lib/http.js'
 import { sha256, verifyAccessToken } from '../lib/tokens.js'
+import { touchDeviceActivity } from '../services/devicePresence.js'
 
 export async function requireUser(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
@@ -68,6 +69,17 @@ export async function requireDevice(req: Request, _res: Response, next: NextFunc
       role: device.role,
       permission: device.permission,
       accessCodeId: device.accessCodeId ?? null,
+    }
+    // 任意一次带令牌的请求都算活动：内存表立刻生效，写库按 30 秒节流。
+    // 这样即使 Socket.IO 被代理掐断、设备只是在翻页/刷新，后台也不会误判离线。
+    if (touchDeviceActivity(device.id)) {
+      void db
+        .update(devices)
+        .set({ lastSeenAt: new Date() })
+        .where(eq(devices.id, device.id))
+        .catch(() => {
+          // 活动时间写库失败不影响请求本身
+        })
     }
     next()
   } catch {
