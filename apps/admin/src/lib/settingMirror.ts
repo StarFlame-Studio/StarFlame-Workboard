@@ -164,7 +164,6 @@ export const SETTING_GROUPS: MirrorGroup[] = [
         { title: '星焰作业板API', value: 'starflame-api' },
         { title: '本地缓存模式（离线可用）', value: 'local-cache' },
       ], '当前数据来源'),
-      bool('developer.enabled', '启用开发者选项', false, '启用后可查看开发者设置'),
     ],
   },
 ]

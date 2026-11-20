@@ -124,7 +124,6 @@ export const SETTING_DEFS: SettingDef[] = [
       { title: '星焰作业板API', value: 'starflame-api' },
       { title: '本地缓存模式（离线可用）', value: 'local-cache' },
     ] },
-  bool('developer.enabled', '启用开发者选项', false, 'mdi-code-tags', '启用后可查看开发者设置'),
 ]
 
 export const SETTING_MAP: Record<string, SettingDef> = Object.fromEntries(

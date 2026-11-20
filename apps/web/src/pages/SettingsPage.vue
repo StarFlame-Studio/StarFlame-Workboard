@@ -176,40 +176,9 @@
           <background-settings-card :model="settings" @save="saveAll" @update="onSettingUpdate" />
         </template>
 
-        <!-- 开发者 -->
+        <!-- 备份迁移 / 作业导入导出 -->
         <template v-else-if="activeTab === 'transfer'">
           <transfer-card />
-        </template>
-
-        <template v-else-if="activeTab === 'homeworkTransfer'">
-          <homework-transfer-card />
-        </template>
-
-        <template v-else-if="activeTab === 'developer'">
-          <settings-card icon="mdi-developer-board" title="开发者选项">
-            <v-list-item>
-              <template #prepend><v-icon class="mr-3" icon="mdi-code-tags" /></template>
-              <v-list-item-title>启用开发者选项</v-list-item-title>
-              <v-list-item-subtitle>启用后可以查看和修改开发者设置</v-list-item-subtitle>
-              <template #append>
-                <v-switch v-model="devEnabled" density="comfortable" hide-details @update:model-value="onSettingUpdate('developer.enabled', $event)" />
-              </template>
-            </v-list-item>
-          </settings-card>
-
-          <settings-card v-if="devEnabled" icon="mdi-cog-outline" subtitle="浏览和修改所有可用设置" title="所有设置">
-            <v-text-field v-model="devKeyword" clearable density="compact" hide-details placeholder="搜索设置项" prepend-inner-icon="mdi-magnify" variant="outlined" />
-            <v-divider class="my-2" />
-            <v-list-item v-for="key in filteredSettingKeys" :key="key">
-              <v-list-item-title class="text-body-2"><code>{{ key }}</code></v-list-item-title>
-              <template #append>
-                <span class="text-caption text-medium-emphasis">{{ previewValue(key) }}</span>
-              </template>
-            </v-list-item>
-            <template #actions>
-              <v-btn prepend-icon="mdi-download" variant="tonal" @click="exportSettings">导出全部设置 JSON</v-btn>
-            </template>
-          </settings-card>
         </template>
 
         <!-- 关于 -->
@@ -281,9 +250,7 @@ const dirty = ref(false)
 const saving = ref(false)
 /** 首屏设置加载中：显示微光骨架屏，避免表单闪现断值 */
 const settingsLoading = ref(true)
-const devEnabled = ref(false)
 const themeMode = ref('dark')
-const devKeyword = ref('')
 const studentCount = ref(0)
 const snack = reactive({ show: false, text: '', color: 'success' })
 
@@ -303,7 +270,6 @@ const tabs = [
   { title: '背景', icon: 'mdi-image', value: 'background' },
   { title: '备份迁移', icon: 'mdi-cloud-sync-outline', value: 'transfer' },
   { title: '作业导入导出', icon: 'mdi-swap-vertical-bold', value: 'homeworkTransfer' },
-  { title: '开发者', icon: 'mdi-developer-board', value: 'developer' },
   { title: '关于', icon: 'mdi-information', value: 'about' },
 ]
 
@@ -353,12 +319,6 @@ const timeSyncHintText = computed(() => {
   if (!host) return '请填写自定义 NTP 主机名；留空时服务端会自动回退到阿里云 NTP。'
   if (host.length > 100 || !/^[A-Za-z0-9.-]+$/.test(host)) return '只能填写 NTP 主机名（字母、数字、点、短横线，长度不超过 100）。'
   return '服务端会校验该主机是否为公网地址；解析失败或不可用时自动回退到阿里云 NTP。'
-})
-
-const filteredSettingKeys = computed(() => {
-  const key = devKeyword.value.trim().toLowerCase()
-  const all = Object.keys(settings).sort()
-  return key ? all.filter((item) => item.toLowerCase().includes(key)) : all
 })
 
 function notify(text: string, color = 'success'): void {
@@ -469,25 +429,6 @@ async function flushSettings(): Promise<boolean> {
   }
 }
 
-function previewValue(key: string): string {
-  const value = settings[key]
-  if (value === undefined || value === null || value === '') return '—'
-  return String(value).slice(0, 40)
-}
-
-function exportSettings(): void {
-  const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'starflame-settings.json'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-  notify('已导出设置 JSON')
-}
-
 function previewSound(): void {
   try {
     const ctx = new AudioContext()
@@ -527,7 +468,6 @@ async function loadAll(): Promise<void> {
       if (key === 'homeworkTemplate') continue
       settings[key] = value
     }
-    devEnabled.value = Boolean(settings['developer.enabled'])
     // 主题是本机设置：永远以 localStorage 为准，忽略云端残留的 theme.mode
     delete settings['theme.mode']
     themeMode.value = currentTheme()
