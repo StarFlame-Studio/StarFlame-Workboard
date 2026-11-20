@@ -76,11 +76,11 @@ watch(mobile, (isMobile) => {
 /** 多页面站点的导航表：href 为静态页面地址，点击即整页跳转 */
 const NAV = [
   { key: 'overview', title: '概览', icon: 'mdi-view-dashboard-outline', href: '/' },
-  { key: 'classes', title: '班级', icon: 'mdi-google-classroom', href: '/classes.html' },
-  { key: 'notices', title: '通知', icon: 'mdi-bullhorn-outline', href: '/notices.html' },
-  { key: 'users', title: '用户', icon: 'mdi-account-multiple-outline', href: '/users.html' },
-  { key: 'devices', title: '设备', icon: 'mdi-monitor-dashboard', href: '/devices.html' },
-  { key: 'audit', title: '审计日志', icon: 'mdi-clipboard-list-outline', href: '/audit.html' },
+  { key: 'classes', title: '班级', icon: 'mdi-google-classroom', href: '/classes' },
+  { key: 'notices', title: '通知', icon: 'mdi-bullhorn-outline', href: '/notices' },
+  { key: 'users', title: '用户', icon: 'mdi-account-multiple-outline', href: '/users' },
+  { key: 'devices', title: '设备', icon: 'mdi-monitor-dashboard', href: '/devices' },
+  { key: 'audit', title: '审计日志', icon: 'mdi-clipboard-list-outline', href: '/audit' },
 ]
 
 /** 仅管理员可见全部菜单；教师账号只保留班级 */
@@ -108,13 +108,13 @@ function reload(): void {
 
 async function logout(): Promise<void> {
   await auth.logout()
-  window.location.replace('/login.html')
+  window.location.replace('/login')
 }
 
 onMounted(async () => {
   if (!auth.user) await auth.loadMe()
   if (!canAdmin.value && props.active === 'overview') {
-    window.location.replace('/classes.html')
+    window.location.replace('/classes')
   }
 })
 </script>

@@ -37,7 +37,7 @@
           {{ formatDate(item.createdAt) }}
         </template>
         <template #item.actions="{ item }">
-          <v-btn color="primary" size="small" variant="text" :href="'/class.html?classId=' + item.id">进入看板</v-btn>
+          <v-btn color="primary" size="small" variant="text" :href="'/class?classId=' + item.id">进入看板</v-btn>
           <v-btn v-if="canAdmin" size="small" variant="text" @click="openEdit(item)">编辑</v-btn>
           <v-btn v-if="canAdmin" color="error" size="small" variant="text" @click="askArchive(item)">归档</v-btn>
         </template>

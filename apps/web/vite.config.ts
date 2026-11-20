@@ -28,7 +28,7 @@ export default defineConfig({
               theme_color: '#16130F',
               background_color: '#F7F6F4',
               display: 'fullscreen',
-              start_url: './index.html',
+              start_url: './',
               // 部分平台（Chrome 商店列表、桌面安装器信息）会读取开发者/发布者信息
               ...({ developer: { name: '焰火工作室' }, publisher: '焰火工作室' } as Record<string, unknown>),
               icons: [
