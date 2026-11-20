@@ -41,6 +41,7 @@ import {
 import { newAccessCode, newClassCode, newClassUid, newId } from '../lib/ids.js'
 import { hashPassword } from '../lib/password.js'
 import { writeAudit } from '../lib/audit.js'
+import { logger } from '../logger.js'
 import { clientIp, readLimiter, writeLimiter } from '../middleware/rateLimit.js'
 import { requireAdmin, requireUser } from '../middleware/auth.js'
 import { validateBody } from '../middleware/validate.js'
@@ -48,6 +49,7 @@ import { seedSubjects } from '../services/classService.js'
 import { deviceActivityAt, forgetDeviceActivity, isDeviceOnline } from '../services/devicePresence.js'
 import {
   broadcastChange,
+  deviceCommandState,
   disconnectDeviceSockets,
   hasPendingDeviceCommand,
   queueDeviceCommand,
@@ -735,12 +737,16 @@ router.get('/devices', async (req, res, next) => {
         activityAt !== null && (!row.lastSeenAt || activityAt > row.lastSeenAt.getTime())
           ? new Date(activityAt)
           : row.lastSeenAt
+      // 远程指令的执行情况：设备回执失败时把原因一并带给后台，便于定位为什么没卸掉
+      const command = deviceCommandState(row.id)
       return {
         ...row,
         lastSeenAt: effectiveLastSeen,
         online: isDeviceOnline(row.id, row.lastSeenAt, now),
         // 已下发但设备还没上线的远程卸载指令：后台显示「待送达」，用户不必反复点击
         uninstallPending: hasPendingDeviceCommand(row.id),
+        commandDispatchedAt: command.dispatchedAt ? new Date(command.dispatchedAt) : null,
+        commandAck: command.ack,
       }
     })
     const onlineCount = decorated.filter((row) => row.online).length
@@ -790,6 +796,27 @@ router.delete('/devices/:id', writeLimiter, async (req, res, next) => {
   }
 })
 
+/** 远程卸载要求的最低桌面客户端版本：更早的版本没有接收 device.command 的代码，只会白等 */
+const MIN_REMOTE_UNINSTALL_VERSION = '1.1.7'
+
+/** 从设备 UA 里取桌面客户端版本（@starflame/desktop/x.y.z），网页端或未上报返回 null */
+function desktopClientVersion(userAgent: string | null): string | null {
+  if (!userAgent) return null
+  const matched = /@starflame\/desktop\/([\d.]+)/.exec(userAgent)
+  return matched ? matched[1] : null
+}
+
+/** 版本号逐段比较（不足补 0），a<b 返回负数 */
+function compareVersionText(a: string, b: string): number {
+  const pa = a.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const pb = b.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
 /**
  * 远程卸载设备上的桌面版作业板。
  * 通过 socket 下发 device.command 指令，客户端收到后不做任何确认、直接静默卸载并退出；
@@ -802,9 +829,32 @@ router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
     if (!rows[0]) throw notFound('设备不存在')
     if (rows[0].status !== 'active') throw badRequest('该设备已被吊销，无法远程卸载')
 
+    // 旧版客户端没有接收 device.command 的代码：指令发过去它也不会执行，只会让后台一直等
+    // 回执、让人误以为「发了没生效」。这里提前拦下并明确告诉要升级到哪个版本。
+    const clientVersion = desktopClientVersion(rows[0].userAgent)
+    // UA 明确不是桌面客户端（浏览器打开网页端 / 测试脚本）时直接拦下，避免发出去只收到「不支持」回执
+    if (rows[0].userAgent && !clientVersion) {
+      throw badRequest('该设备当前不是桌面客户端（用浏览器打开的网页端），无法远程卸载')
+    }
+    if (clientVersion && compareVersionText(clientVersion, MIN_REMOTE_UNINSTALL_VERSION) < 0) {
+      throw badRequest(
+        '该设备的作业板版本是 v' + clientVersion + '，不支持远程卸载，请先升级到 v' + MIN_REMOTE_UNINSTALL_VERSION + ' 或更高版本',
+      )
+    }
+
     // 在线设备立即下发；离线设备把指令挂起，等它下次连上实时层自动执行（24 小时内有效）
     const sent = sendDeviceCommand(deviceId, { type: 'uninstall' })
     if (sent === 0) queueDeviceCommand(deviceId, { type: 'uninstall' })
+    // 下发后 90 秒仍没有回执时记一条警告：旧版本客户端（1.1.6 及以前）根本没有指令处理逻辑，
+    // 收到也不会执行也不会回执；有这条日志就能立刻区分「设备太旧」和「设备执行失败」
+    const dispatchedAt = deviceCommandState(deviceId).dispatchedAt
+    if (sent > 0 && dispatchedAt) {
+      setTimeout(() => {
+        const state = deviceCommandState(deviceId)
+        if (state.ack && state.ack.at >= dispatchedAt) return
+        logger.warn({ deviceId, name: rows[0].name, dispatchedAt }, 'device command dispatched without ack in 90s')
+      }, 90 * 1000).unref?.()
+    }
 
     await writeAudit({
       actorType: 'user',
@@ -815,7 +865,7 @@ router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
       detail: { sent, pending: sent === 0, name: rows[0].name },
       ip: clientIp(req),
     })
-    ok(res, { id: deviceId, sent, delivered: sent > 0, pending: sent === 0 })
+    ok(res, { id: deviceId, sent, delivered: sent > 0, pending: sent === 0, clientVersion })
   } catch (error) {
     next(error)
   }
