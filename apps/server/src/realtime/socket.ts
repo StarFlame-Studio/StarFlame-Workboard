@@ -17,6 +17,23 @@ export interface BoardEventPayload {
 
 let io: Server | null = null
 
+/** 从 socket 握手信息里取客户端 IP（与 HTTP 侧的 clientIp 同一套优先级） */
+function socketClientIp(socket: {
+  handshake: { headers: Record<string, unknown>; address?: string }
+}): string | null {
+  const headers = socket.handshake.headers
+  const cf = headers['cf-connecting-ip']
+  if (typeof cf === 'string' && cf.trim()) return cf.trim().slice(0, 64)
+  const forwarded = headers['x-forwarded-for']
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded
+  if (typeof raw === 'string' && raw.trim()) {
+    const first = raw.split(',')[0]?.trim()
+    if (first) return first.slice(0, 64)
+  }
+  const address = socket.handshake.address
+  return address ? address.slice(0, 64) : null
+}
+
 /** 房间名：按班级隔离 */
 export function classRoom(classId: string): string {
   return 'class:' + classId
@@ -105,9 +122,10 @@ export function initSocket(server: HttpServer): Server {
     if (deviceId) {
       markDeviceSocketOpen(deviceId)
       socket.data.deviceTracked = true
+      const lastIp = socketClientIp(socket)
       void db
         .update(devices)
-        .set({ lastSeenAt: new Date() })
+        .set({ lastSeenAt: new Date(), ...(lastIp ? { lastIp } : {}) })
         .where(eq(devices.id, deviceId))
         .catch((error) => logger.warn({ err: error }, 'device presence update failed'))
     }

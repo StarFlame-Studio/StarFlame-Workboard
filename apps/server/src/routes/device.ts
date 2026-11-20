@@ -87,6 +87,7 @@ router.post('/login', bindLimiter, validateBody(deviceLoginSchema), async (req, 
           status: 'active',
           lastSeenAt: new Date(),
           userAgent: (req.headers['user-agent'] ?? '').slice(0, 255),
+          lastIp: clientIp(req),
         })
         .where(eq(devices.id, device.id))
     } else {
@@ -102,6 +103,7 @@ router.post('/login', bindLimiter, validateBody(deviceLoginSchema), async (req, 
         permission,
         isReadOnly,
         userAgent: (req.headers['user-agent'] ?? '').slice(0, 255),
+        lastIp: clientIp(req),
         lastSeenAt: new Date(),
         status: 'active',
       })
@@ -207,7 +209,12 @@ router.get('/me', requireDevice, async (req, res, next) => {
 
 router.post('/heartbeat', writeLimiter, requireDevice, async (req, res, next) => {
   try {
-    await db.update(devices).set({ lastSeenAt: new Date() }).where(eq(devices.id, req.device!.id))
+    // 心跳同时刷新 UA 与 IP：客户端升级版本、更换网络后管理面板都能看到最新值
+    const userAgent = (req.headers['user-agent'] ?? '').slice(0, 255)
+    await db
+      .update(devices)
+      .set({ lastSeenAt: new Date(), lastIp: clientIp(req), ...(userAgent ? { userAgent } : {}) })
+      .where(eq(devices.id, req.device!.id))
     ok(res, { online: true, serverTime: new Date().toISOString() })
   } catch (error) {
     next(error)

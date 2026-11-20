@@ -705,6 +705,8 @@ router.get('/devices', async (req, res, next) => {
         isReadOnly: devices.isReadOnly,
         role: devices.role,
         permission: devices.permission,
+        userAgent: devices.userAgent,
+        lastIp: devices.lastIp,
         lastSeenAt: devices.lastSeenAt,
         createdAt: devices.createdAt,
       })

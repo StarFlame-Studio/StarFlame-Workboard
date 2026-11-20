@@ -342,6 +342,7 @@ export const devices = mysqlTable(
     permission: mysqlEnum('permission', ['read', 'write']).notNull().default('write'),
     isReadOnly: boolean('is_read_only').notNull().default(false),
     userAgent: varchar('user_agent', { length: 255 }),
+    lastIp: varchar('last_ip', { length: 64 }),
     lastSeenAt: datetime('last_seen_at', { fsp: 3 }),
     status: mysqlEnum('status', ['active', 'revoked']).notNull().default('active'),
     createdAt: createdAt(),
