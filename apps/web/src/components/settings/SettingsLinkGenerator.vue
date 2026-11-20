@@ -59,6 +59,11 @@
 
       <div class="text-caption text-medium-emphasis">已选 {{ selectedKeys.length }} 项设置</div>
 
+      <div class="text-caption text-medium-emphasis mt-2">
+        <v-icon icon="mdi-web" size="x-small" />
+        链接域名：{{ webOrigin }}
+      </div>
+
       <v-expansion-panels class="mt-2" variant="accordion">
         <v-expansion-panel>
           <v-expansion-panel-title class="text-body-2">显示设置列表详情</v-expansion-panel-title>
@@ -121,9 +126,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { getData } from '@/lib/api'
+import { resolveWebOrigin, webUrl } from '@/lib/webOrigin'
 import SettingsGroup from '@/components/settings/SettingGroup.vue'
 
 const form = reactive({ classCode: '', accessCode: '', deviceName: '', autoAuth: true })
+/** 生成链接所用的网页域名（桌面端不是 app://local，而是真正的网页地址） */
+const webOrigin = resolveWebOrigin()
 const selectedKeys = ref<string[]>([])
 const link = ref('')
 const settings = ref<Record<string, unknown>>({})
@@ -249,7 +257,8 @@ function generate(): void {
     }
     params.set('settings', encodeURIComponent(JSON.stringify(snapshot)))
   }
-  link.value = window.location.origin + '/bind?' + params.toString()
+  // 必须用真正的网页地址：桌面端页面跑在 app://local，用 location.origin 拼出来的链接发出去打不开
+  link.value = webUrl('/bind') + '?' + params.toString()
   snack.text = form.autoAuth ? '已生成预配链接（打开即自动登录）' : '已生成统一链接'
   snack.color = 'success'
   snack.show = true

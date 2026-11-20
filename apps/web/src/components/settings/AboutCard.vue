@@ -122,6 +122,7 @@ import { useSessionStore } from '@/stores/session'
 import { apiBase } from '@/lib/api'
 import GiteeIcon from '@/components/GiteeIcon.vue'
 import { GITHUB_REPO_URL, GITEE_REPO_URL } from '@/lib/repoLinks'
+import { resolveWebOrigin } from '@/lib/webOrigin'
 import {
   DEVICE_MODE_LABEL,
   deviceMode,
@@ -161,7 +162,8 @@ const CHANNEL_LABEL: Record<string, string> = {
 }
 
 const session = useSessionStore()
-const origin = window.location.origin
+// 桌面端页面跑在 app://local，这里显示真正可分发的网页地址
+const origin = resolveWebOrigin()
 const version = APP_VERSION
 const versionCode = String(APP_VERSION_CODE)
 
