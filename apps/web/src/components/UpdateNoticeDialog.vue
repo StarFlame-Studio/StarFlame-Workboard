@@ -8,9 +8,7 @@
       <v-divider />
       <v-card-text class="pa-6">
         <div class="update-summary">{{ entry?.summary || '本次更新包含若干修复与优化。' }}</div>
-        <ul v-if="items.length" class="update-items">
-          <li v-for="(item, i) in items" :key="i">{{ item }}</li>
-        </ul>
+        <ChangelogBody class="update-items" :entry="entry" />
         <div class="update-foot">桌面端已在后台静默完成安装并自动重启，无需任何操作。</div>
       </v-card-text>
       <v-divider />
@@ -28,7 +26,8 @@
  * 主进程在启动时判定本轮是不是刚被自动更新（--updated 启动参数 / 版本号变化），
  * 这里取一次并展示对应版本的更新内容（数据源与版本号徽标共用 CHANGELOG）。
  */
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import ChangelogBody from '@/components/ChangelogBody.vue'
 import { findChangelog, type ChangelogEntry } from '@/lib/changelog'
 import { isDesktop, startupNotice } from '@/lib/platform'
 
@@ -38,8 +37,6 @@ const SEEN_KEY = 'sf.updateNotice.seenVersion'
 const open = ref(false)
 const version = ref('')
 const entry = ref<ChangelogEntry | null>(null)
-
-const items = computed(() => entry.value?.items ?? [])
 
 onMounted(() => {
   if (!isDesktop) return
@@ -75,15 +72,7 @@ function close(): void {
 }
 
 .update-items {
-  margin: 14px 0 0;
-  padding-left: 20px;
-  font-size: 14px;
-  line-height: 1.9;
-  color: var(--text-2);
-}
-
-.update-items li {
-  margin-bottom: 6px;
+  margin-top: 14px;
 }
 
 .update-foot {
