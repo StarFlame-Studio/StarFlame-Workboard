@@ -162,7 +162,7 @@ const settingGroups = [
   {
     key: 'bell',
     label: '课铃偏移',
-    keys: ['schedule.bellOffset', 'schedule.bellOffsetAuto', 'schedule.bellOffsets'],
+    keys: ['schedule.bellOffset'],
   },
   {
     key: 'edit',
