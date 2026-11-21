@@ -1,6 +1,6 @@
 <template>
   <v-dialog v-model="visible" :fullscreen="isMobile" max-width="1120" width="auto" @click:outside="handleClose">
-    <v-card ref="cardRef" border tabindex="-1">
+    <v-card ref="cardRef" border data-tutorial-anchor="hw-dialog" tabindex="-1">
       <v-card-title class="d-flex align-center">
         {{ title }}
         <v-spacer />
@@ -153,7 +153,16 @@
       <v-card-actions class="px-4 pb-4">
         <v-btn variant="text" prepend-icon="mdi-close" @click="handleClose">关闭</v-btn>
         <v-spacer />
-        <v-btn :loading="saving" color="primary" prepend-icon="mdi-content-save" variant="elevated" @click="handleSave">保存</v-btn>
+        <v-btn
+          :loading="saving"
+          color="primary"
+          data-tutorial-anchor="hw-save"
+          prepend-icon="mdi-content-save"
+          variant="elevated"
+          @click="handleSave"
+        >
+          保存
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

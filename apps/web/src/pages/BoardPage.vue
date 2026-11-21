@@ -415,7 +415,7 @@
   <urgent-notification-dialog v-model="notifyOpen" @sent="onNoticeSent" />
 
   <tutorial-prompt-dialog v-model="tutorialAskOpen" @dismiss="dismissTutorial" @start="startTutorial" />
-  <tutorial-overlay v-model="tutorialOpen" @finish="onTutorialFinish" />
+  <tutorial-overlay ref="tutorialRef" v-model="tutorialOpen" @finish="onTutorialFinish" />
 
   <homework-transfer-dialog v-model="transferOpen" />
 
@@ -562,6 +562,7 @@ import {
   isBasicTutorialSeen,
   markBasicTutorialSeen,
   snoozeBasicTutorial,
+  type TutorialActionId,
 } from '@/lib/tutorial'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { deviceMode, isMobileUi } from '@/lib/deviceMode'
@@ -591,6 +592,7 @@ const notifyOpen = ref(false)
 // ---------- 引导式教程（基础版） ----------
 const tutorialAskOpen = ref(false)
 const tutorialOpen = ref(false)
+const tutorialRef = ref<InstanceType<typeof TutorialOverlay> | null>(null)
 const examPickerOpen = ref(false)
 // 点击首页考试卡片 → 打开该考试的详情浏览弹窗
 const examDetailOpen = ref(false)
@@ -1309,6 +1311,7 @@ async function openEditorById(key: string): Promise<void> {
     editorContent.value = card.content
     editorOpen.value = true
     setTimeout(() => editorRef.value?.focus(), 150)
+    signalTutorial('open-homework-editor')
     return
   }
 
@@ -1320,6 +1323,7 @@ async function openEditorById(key: string): Promise<void> {
   editorContent.value = homeworkBySubject.value[key]?.content ?? ''
   editorOpen.value = true
   setTimeout(() => editorRef.value?.focus(), 150)
+  signalTutorial('open-homework-editor')
 }
 
 // 首页已不再提供「新建自定义卡片」入口（改由设置/后台的自定义卡片管理）
@@ -1357,6 +1361,7 @@ async function saveHomework(content: string): Promise<void> {
   // 空内容且原本也空：直接关闭，不发请求
   if (!next && !editorContent.value.trim()) {
     editorOpen.value = false
+    signalTutorial('close-homework-editor')
     return
   }
 
@@ -1374,6 +1379,7 @@ async function saveHomework(content: string): Promise<void> {
     editorRef.value?.setSaving(false)
     editorOpen.value = false
     notify(next ? '已保存' : '已清空')
+    signalTutorial('close-homework-editor')
   } catch (error) {
     const message = error instanceof Error ? error.message : '保存失败'
     editorRef.value?.setError(message)
@@ -1435,14 +1441,14 @@ async function switchDate(target: string): Promise<void> {
 function shiftDay(delta: number): void {
   const base = parseDateString(board.date)
   base.setDate(base.getDate() + delta)
-  void switchDate(toDateString(base))
+  void switchDate(toDateString(base)).then(() => signalTutorial('date-change'))
 }
 
 function handleDateSelect(value: unknown): void {
   if (value === null || value === undefined) return
   const raw = value instanceof Date ? value : parseDateString(String(value).slice(0, 10))
   if (Number.isNaN(raw.getTime())) return
-  void switchDate(toDateString(raw))
+  void switchDate(toDateString(raw)).then(() => signalTutorial('date-change'))
 }
 
 async function copyToToday(): Promise<void> {
@@ -1462,6 +1468,7 @@ function zoom(direction: 'up' | 'out'): void {
   const next = direction === 'up' ? fontSize.value + step : fontSize.value - step
   const clamped = clampFontSize(next)
   if (clamped !== fontSize.value) fontSize.value = clamped
+  signalTutorial('font-size')
 }
 
 async function toggleFullscreen(): Promise<void> {
@@ -1517,8 +1524,16 @@ function dismissTutorial(): void {
   snoozeBasicTutorial()
 }
 
+/** 把用户在看板上完成的真实操作转给教程浮层，让它自动进入下一步 */
+function signalTutorial(action: TutorialActionId): void {
+  if (!tutorialOpen.value) return
+  tutorialRef.value?.notifyAction(action)
+}
+
 function onTutorialFinish(): void {
   markBasicTutorialSeen()
+  // 教程里翻过日期，结束后切回今天，避免用户停在历史某一天继续用
+  if (!isToday.value) void switchDate(toDateString(new Date()))
 }
 
 function notify(text: string, color = 'success'): void {
