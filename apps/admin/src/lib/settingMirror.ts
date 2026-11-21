@@ -53,7 +53,6 @@ export const SETTING_GROUPS: MirrorGroup[] = [
       bool('display.enhancedTouchMode', '是否启用增强触摸模式', true, '为触摸屏优化点击区域'),
       bool('display.showQuickTools', '是否显示快捷键键盘', true, '作业编辑弹窗右侧数字键盘'),
       bool('display.showPasteButtons', '是否显示粘贴按钮', true, '作业编辑弹窗的粘贴按钮'),
-      bool('display.showAntiScreenBurnCard', '是否显示防烧屏忽悠卡片', true, '展示屏幕保护提示卡片'),
       bool('display.showListCard', '是否显示列表卡片', true, '底栏的作业列表入口'),
       bool('display.showAttendance', '是否显示出勤统计', false, '大屏右侧（作业墙为左栏）的出勤统计卡片'),
       bool('display.showExamScheduleButton', '是否显示考试看板', true, '底栏的考试看板按钮'),

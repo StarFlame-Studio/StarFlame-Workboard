@@ -63,17 +63,6 @@
     </v-btn>
   </div>
 
-  <v-card v-if="showAntiScreenBurnCard" border class="mt-4 anti-burn-card" color="primary" variant="tonal">
-    <v-card-title class="text-subtitle-1">
-      <v-icon icon="mdi-shield-check" size="small" start />
-      屏幕保护技术已启用
-    </v-card-title>
-    <v-card-text class="text-body-2">
-      <p>为防止OLED/LCD屏幕烧屏，界面元素会定期微调位置。</p>
-      <p class="text-caption text-grey">此功能不会影响正常使用，仅在长时间静止显示时生效。</p>
-      <p class="text-caption text-grey">建议在放学后关闭显示器以节约能源。</p>
-    </v-card-text>
-  </v-card>
 </template>
 
 <script setup lang="ts">
@@ -86,7 +75,6 @@ withDefaults(
     showListCardButton?: boolean
     showFullscreenButton?: boolean
     isFullscreen?: boolean
-    showAntiScreenBurnCard?: boolean
     showTestCardButton?: boolean
     showTransferButton?: boolean
   }>(),
@@ -98,7 +86,6 @@ withDefaults(
     showListCardButton: true,
     showFullscreenButton: true,
     isFullscreen: false,
-    showAntiScreenBurnCard: false,
     showTestCardButton: false,
     showTransferButton: true,
   },
@@ -190,23 +177,4 @@ defineEmits<{
 .v-theme--dark .home-actions .act-transfer { color: #86bcf5 !important; }
 
 
-.anti-burn-card {
-  animation: subtle-glow 4s infinite alternate;
-  transition: all 0.3s ease;
-}
-
-.anti-burn-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-@keyframes subtle-glow {
-  0% {
-    box-shadow: 0 0 5px rgba(33, 150, 243, 0.1);
-  }
-
-  100% {
-    box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
-  }
-}
 </style>

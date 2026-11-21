@@ -40,7 +40,6 @@ export const SETTING_DEFS: SettingDef[] = [
   bool('display.enhancedTouchMode', '是否启用增强触摸模式', true, 'mdi-gesture-tap-button', '为触摸屏优化点击区域'),
   bool('display.showQuickTools', '是否显示快捷键键盘', true, 'mdi-keyboard-outline', '作业编辑弹窗右侧数字键盘'),
   bool('display.showPasteButtons', '是否显示粘贴按钮', true, 'mdi-content-paste', '作业编辑弹窗的粘贴按钮'),
-  bool('display.showAntiScreenBurnCard', '是否显示防烧屏忽悠卡片', true, 'mdi-monitor-shimmer', '展示屏幕保护提示卡片'),
   bool('display.showListCard', '是否显示列表卡片', true, 'mdi-list-box', '底栏的作业列表入口'),
   bool('display.showAttendance', '是否显示出勤统计', false, 'mdi-account-group', '大屏右侧（作业墙为左栏）的出勤统计卡片'),
   bool('display.showExamScheduleButton', '是否显示考试看板', true, 'mdi-calendar-check', '底栏的考试看板按钮'),
