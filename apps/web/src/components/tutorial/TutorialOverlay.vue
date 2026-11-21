@@ -1,6 +1,6 @@
 <template>
   <teleport to="body">
-    <div v-if="modelValue" class="tutorial-root" @keydown="onKeydown">
+    <div v-if="modelValue" :class="['tutorial-root', { 'is-dark': isDark }]" @keydown="onKeydown">
       <!-- 高亮遮罩：一个超大的 box-shadow 把四周压暗，中间留出被讲解的元素 -->
       <div v-if="rect" class="tutorial-spotlight" :style="spotlightStyle" />
 
@@ -58,6 +58,11 @@ interface Box {
 
 const rect = ref<Box | null>(null)
 const cardStyle = ref<Record<string, string>>({})
+/**
+ * 浮层被 teleport 到 body，脱离了 .v-theme--dark 的 DOM 作用域，
+ * 所以卡片配色要自己判断当前是不是暗色主题。
+ */
+const isDark = ref(false)
 
 const CARD_WIDTH = 460
 const CARD_GAP = 18
@@ -208,6 +213,7 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
+      isDark.value = Boolean(document.querySelector('.v-theme--dark'))
       index.value = 0
       window.addEventListener('resize', onResize)
       window.addEventListener('keydown', onKeydown)
@@ -342,16 +348,20 @@ onBeforeUnmount(() => {
   }
 }
 
-:global(.v-theme--dark) .tutorial-card {
+.tutorial-root.is-dark .tutorial-card {
   background: #241f1b;
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-:global(.v-theme--dark) .tutorial-title {
+.tutorial-root.is-dark .tutorial-title {
   color: #f5efe9;
 }
 
-:global(.v-theme--dark) .tutorial-body {
+.tutorial-root.is-dark .tutorial-body {
   color: #cfc4ba;
+}
+
+.tutorial-root.is-dark .tutorial-count {
+  color: #9a8d82;
 }
 </style>
