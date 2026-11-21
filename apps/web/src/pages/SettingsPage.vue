@@ -288,7 +288,7 @@ const group = {
     'timeCard.enabled', 'display.emptySubjectDisplay', 'display.dynamicSort',
     'display.showRandomButton', 'display.showFullscreenButton', 'display.cardHoverEffect',
     'display.enhancedTouchMode', 'display.showQuickTools', 'display.showPasteButtons',
-    'display.showAntiScreenBurnCard', 'display.showExamScheduleButton',
+    'display.showExamScheduleButton',
     'display.showListCard', 'display.showAttendance', 'display.forceDesktopMode',
     'display.lateStudentsArePresent', 'pwa.hideInstallCard',
   ],

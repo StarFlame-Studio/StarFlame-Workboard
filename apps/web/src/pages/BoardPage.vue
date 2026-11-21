@@ -265,7 +265,6 @@
 
       <home-actions
         :is-fullscreen="isFullscreen"
-        :show-anti-screen-burn-card="showAntiBurnCardSetting"
         :show-exam-schedule-button="showExamButtonSetting"
         :show-fullscreen-button="showFullscreenButtonSetting"
         :show-list-card-button="showListCardSetting"
@@ -334,7 +333,6 @@
 
       <home-actions
         :is-fullscreen="isFullscreen"
-        :show-anti-screen-burn-card="showAntiBurnCardSetting"
         :show-exam-schedule-button="showExamButtonSetting"
         :show-fullscreen-button="showFullscreenButtonSetting"
         :show-list-card-button="showListCardSetting"
@@ -928,9 +926,6 @@ const showExamButtonSetting = computed(() =>
   boolSetting(settings.value, 'display.showExamScheduleButton', true),
 )
 const showListCardSetting = computed(() => boolSetting(settings.value, 'display.showListCard', true))
-const showAntiBurnCardSetting = computed(() =>
-  boolSetting(settings.value, 'display.showAntiScreenBurnCard', true),
-)
 const showQuickToolsSetting = computed(() =>
   boolSetting(settings.value, 'display.showQuickTools', true),
 )

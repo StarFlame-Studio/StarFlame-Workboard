@@ -78,6 +78,7 @@ export const PENDING_CHANGELOG: ChangelogEntry[] = [
     board: {
       improved: [
         '移除设置页的「开发者选项」：设置页只保留日常会用到的功能，界面更清爽',
+        '首页不再显示「屏幕保护技术已启用」卡片，相关设置项一并移除，界面更简洁',
       ],
     },
   },

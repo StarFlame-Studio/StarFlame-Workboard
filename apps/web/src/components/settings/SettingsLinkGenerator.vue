@@ -158,7 +158,6 @@ const settingGroups = [
       'display.enhancedTouchMode',
       'display.showQuickTools',
       'display.showPasteButtons',
-      'display.showAntiScreenBurnCard',
       'display.showListCard',
       'display.showExamScheduleButton',
       'display.showAttendance',
