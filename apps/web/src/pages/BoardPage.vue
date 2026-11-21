@@ -414,6 +414,9 @@
 
   <urgent-notification-dialog v-model="notifyOpen" @sent="onNoticeSent" />
 
+  <tutorial-prompt-dialog v-model="tutorialAskOpen" @dismiss="dismissTutorial" @start="startTutorial" />
+  <tutorial-overlay v-model="tutorialOpen" @finish="onTutorialFinish" />
+
   <homework-transfer-dialog v-model="transferOpen" />
 
   <notice-read-dialog
@@ -546,12 +549,20 @@ import FloatingToolbar from '@/components/FloatingToolbar.vue'
 import RandomPicker from '@/components/RandomPicker.vue'
 import PwaInstallCard from '@/components/PwaInstallCard.vue'
 import UrgentNotificationDialog from '@/components/UrgentNotificationDialog.vue'
+import TutorialPromptDialog from '@/components/tutorial/TutorialPromptDialog.vue'
+import TutorialOverlay from '@/components/tutorial/TutorialOverlay.vue'
 import HomeworkTransferDialog from '@/components/home/HomeworkTransferDialog.vue'
 import NoticeReadDialog from '@/components/NoticeReadDialog.vue'
 import ExamBoardPicker from '@/components/ExamBoardPicker.vue'
 import BoardSkeleton from '@/components/skeleton/BoardSkeleton.vue'
 import ExamConfigDialog from '@/components/home/ExamConfigDialog.vue'
 import { consumeSettingsDirty } from '@/lib/settingsDirty'
+import {
+  consumeTutorialRequest,
+  isBasicTutorialSeen,
+  markBasicTutorialSeen,
+  snoozeBasicTutorial,
+} from '@/lib/tutorial'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { deviceMode, isMobileUi } from '@/lib/deviceMode'
 import { isDesktop, toggleFullscreen as platformToggleFullscreen } from '@/lib/platform'
@@ -577,6 +588,9 @@ const editorOpen = ref(false)
 const attDialogOpen = ref(false)
 const randomOpen = ref(false)
 const notifyOpen = ref(false)
+// ---------- 引导式教程（基础版） ----------
+const tutorialAskOpen = ref(false)
+const tutorialOpen = ref(false)
 const examPickerOpen = ref(false)
 // 点击首页考试卡片 → 打开该考试的详情浏览弹窗
 const examDetailOpen = ref(false)
@@ -1481,6 +1495,32 @@ function openTransfer(): void {
   transferOpen.value = true
 }
 
+/** 首次进入作业板时询问是否查看教程；设置页点过「重新观看」则直接开始 */
+function maybeAskTutorial(): void {
+  if (consumeTutorialRequest()) {
+    tutorialOpen.value = true
+    return
+  }
+  if (isBasicTutorialSeen()) return
+  tutorialAskOpen.value = true
+}
+
+function startTutorial(): void {
+  tutorialAskOpen.value = false
+  tutorialOpen.value = true
+  markBasicTutorialSeen()
+}
+
+/** 「以后再说」：暂缓几天再问，不算已看过 */
+function dismissTutorial(): void {
+  tutorialAskOpen.value = false
+  snoozeBasicTutorial()
+}
+
+function onTutorialFinish(): void {
+  markBasicTutorialSeen()
+}
+
 function notify(text: string, color = 'success'): void {
   snack.text = text
   snack.color = color
@@ -1538,6 +1578,8 @@ onMounted(async () => {
   await refreshAttendance()
   handleFreshNotices()
   await applyPendingSettingsRefresh()
+  // 教程等看板数据到位后再问，避免弹窗压着骨架屏
+  maybeAskTutorial()
   // 心跳由全局 presence 模块统一维持（页面可见期间每 45 秒一次），这里不再单独发送
   void ensureNoticePermission()
   window.addEventListener('pointerdown', () => { void ensureNoticePermission() }, { once: true })

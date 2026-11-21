@@ -61,6 +61,15 @@
             </v-alert>
           </settings-card>
 
+          <settings-card icon="mdi-gesture-tap" title="使用教程">
+            <p class="text-body-2 text-medium-emphasis mb-2">
+              重新观看基础教程：如何布置作业、调整字体大小、切换日期。下次打开作业板时教程会自动开始。
+            </p>
+            <template #actions>
+              <v-btn color="primary" prepend-icon="mdi-play-circle" variant="tonal" @click="replayTutorial">重新观看使用教程</v-btn>
+            </template>
+          </settings-card>
+
           <settings-card icon="mdi-link-variant" title="设备绑定">
             <p class="text-body-2 text-medium-emphasis mb-1">
               当前设备已绑定「{{ session.classInfo?.name || '未绑定' }}」，身份为「{{ session.roleText || '未知' }}」。
@@ -228,9 +237,16 @@ import ScheduleSettingsCard from '@/components/settings/ScheduleSettingsCard.vue
 import HitokotoSettingsCard from '@/components/settings/HitokotoSettingsCard.vue'
 import FormSkeleton from '@/components/skeleton/FormSkeleton.vue'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
+import { requestBasicTutorial } from '@/lib/tutorial'
 
 const session = useSessionStore()
 const board = useBoardStore()
+
+/** 设置页请求重新观看教程：写一次性标记，返回看板时直接开始 */
+function replayTutorial(): void {
+  requestBasicTutorial()
+  void go('board')
+}
 
 async function go(page: PageName): Promise<void> {
   // 有未同步的改动时先落盘，避免刚出设置页看板读到的还是旧设置
