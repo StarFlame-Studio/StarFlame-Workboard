@@ -118,9 +118,10 @@ export const SETTING_GROUPS: MirrorGroup[] = [
   },
   {
     key: 'background',
-    title: '背景',
+    title: '主题',
     icon: 'mdi-image-outline',
     fields: [
+      select('theme.card', '卡片主题', 'default', [{ title: '默认', value: 'default' }, { title: '液态玻璃', value: 'liquid' }], '学科卡片与底栏按钮的外观风格'),
       bool('background.enabled', '启用自定义背景', false, '使用图片作为大屏背景'),
       text('background.url', '背景图地址', '', '必须是 https 图片地址'),
       text('background.imageData', '本地背景图', '', '本地上传的图片（data URL），一般在大屏设置里上传'),

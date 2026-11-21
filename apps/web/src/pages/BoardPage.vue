@@ -1,4 +1,7 @@
 <template>
+  <!-- 边缘折射用的 SVG 位移滤镜定义 -->
+  <liquid-glass-refract />
+
   <template v-if="bg.enabled && bg.url">
     <div class="bg-image" :style="bgImageStyle" />
     <div class="bg-overlay" :style="bgOverlayStyle" />
@@ -521,7 +524,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useDisplay } from 'vuetify'
 import type { ExamItem, NoticeItem, SubjectInfo } from '@starflame/shared'
 import { getData, patchData, postData } from '@/lib/api'
@@ -531,6 +534,8 @@ import { onBoardChange, onLatency, onRealtimeStatus } from '@/lib/realtime'
 import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSource'
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
+import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
+import { syncGlassLens } from '@/lib/glassLens'
 import { navigate, type PageName } from '@/lib/nav'
 import { useSessionStore } from '@/stores/session'
 import { useBoardStore } from '@/stores/board'
@@ -555,6 +560,7 @@ import HomeworkTransferDialog from '@/components/home/HomeworkTransferDialog.vue
 import NoticeReadDialog from '@/components/NoticeReadDialog.vue'
 import ExamBoardPicker from '@/components/ExamBoardPicker.vue'
 import BoardSkeleton from '@/components/skeleton/BoardSkeleton.vue'
+import LiquidGlassRefract from '@/components/LiquidGlassRefract.vue'
 import ExamConfigDialog from '@/components/home/ExamConfigDialog.vue'
 import { consumeSettingsDirty } from '@/lib/settingsDirty'
 import {
@@ -886,6 +892,17 @@ const randomPickerEnabled = computed(
 const studentNames = computed(() => board.students.map((item) => item.name))
 
 const settings = computed(() => (board.data?.settings ?? {}) as Record<string, unknown>)
+
+// 卡片主题（默认 / 液态玻璃）：只往 <html> 挂类名，材质全部由 styles/liquid-glass.scss 承担。
+// 设置页改完返回看板时，bootstrap 会带回新的 settings，这里随之切换。
+// ct-liquid--flat：没有自定义背景图时给玻璃垫一层极淡的网格光，否则纯色底上模糊看不出变化。
+watchEffect(() => {
+  applyCardTheme(cardThemeSetting(settings.value))
+  const view = backgroundSetting(settings.value)
+  document.documentElement.classList.toggle('ct-liquid--flat', !(view.enabled && view.url))
+  // 环形透镜取色：沿 12 个方向读取背景图颜色，写入每张卡片的 --lg-c0…--lg-c11，见 lib/glassLens.ts
+  syncGlassLens(settings.value)
+})
 
 // 作息时间表 -> 桌面主进程：上课时段暂停静默更新（网页端为空操作）
 watch(

@@ -3,6 +3,8 @@
 @use './tokens';
 @use './base';
 @use './skeleton';
+// 液态玻璃放在最后：需要盖掉 base.css 里 .v-card 的底色与阴影
+@use './liquid-glass';
 
 html,
 body,

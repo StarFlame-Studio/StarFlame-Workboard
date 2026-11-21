@@ -1,0 +1,131 @@
+/* ============================================================
+   液态玻璃（Liquid Glass）· 共享混入
+   只输出 @mixin，不产生任何 CSS；全局规则见 styles/liquid-glass.scss。
+
+   当前形态：三层
+   1) 包边   —— 1px 受光亮线 + 顶部高光（box-shadow）
+   2) 透镜   —— 与包边同宽的环形带（--lg-lens，卡片 4px / 胶囊 3px）：
+                从中心向 12 个等分方向打到边界，取边界处的背景色，
+                用 conic-gradient 铺满环带，每个颜色向两侧延伸、走到相邻色起点就停。
+                颜色由 lib/glassLens.ts 采样后写入 --lg-c0…--lg-c11。
+                环带有一套独立参数：--lg-lens-saturate / -contrast（比内部玻璃更淡）。
+   3) 玻璃   —— 环带内侧的一整块全透明层：只做 saturate(1.7) + contrast(1.04)，
+                不做高斯模糊（背景保持清晰），边缘的质感由透镜环带负责。
+
+   透镜取色失败（背景图跨域）时环带只剩默认微光，玻璃本身不受影响。
+   ============================================================ */
+
+@mixin lg-glass {
+  position: relative;
+  /* 叠层上下文：让 z-index 为负的透镜层与玻璃层停在「卡片背景之上、文字之下」 */
+  isolation: isolate;
+
+  border-color: transparent !important;
+  background-color: transparent !important;
+
+  box-shadow:
+    inset 0 0 0 1px var(--lg-rim, rgba(255, 255, 255, 0.42)),
+    inset 0 1px 0 0 var(--lg-rim-top, rgba(255, 255, 255, 0.85)),
+    0 12px 32px rgba(0, 0, 0, 0.16) !important;
+
+  &::after {
+    content: '';
+    position: absolute;
+    /* 整块卡片只做一次背景采样：不再按 --lg-lens 内缩 */
+    inset: 1px;
+    z-index: -2;
+    pointer-events: none;
+    border-radius: calc(var(--lg-r, 22px) - 1px);
+    /* 斜向镜面反光：整体仍是全透明的，没有底色 */
+    background-image: linear-gradient(
+      152deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.01) 34%,
+      rgba(255, 255, 255, 0) 62%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    /* 最内层玻璃：只提饱和度与对比度，**不做模糊**（背景保持清晰）。
+       模糊只留在外面的透镜环带上。 */
+    -webkit-backdrop-filter: saturate(var(--lg-saturate, 1.7)) contrast(var(--lg-contrast, 1.04));
+    backdrop-filter: saturate(var(--lg-saturate, 1.7)) contrast(var(--lg-contrast, 1.04));
+  }
+}
+
+/* 透镜环带（叠在玻璃上的彩色光带）—— 回到「四条边」算法：
+   四条 linear-gradient 从各自贴边处不透明、到 --lg-band 处完全透明，
+   多遮罩层按 add 取并集，就得到一圈向内淡出的环带。
+   内缘是渐变（不是刀切），四条边各自独立过渡，所以边上的过渡最自然。 */
+@mixin lg-lens($refract: true) {
+  &::before {
+    content: '';
+    position: absolute;
+    /* 画在玻璃层之上（玻璃层是 -2），但在文字之下 */
+    z-index: -1;
+    opacity: 1;
+
+    /* 只有折射档才需要外扩：位移滤镜会在边缘把采样点推出盒外，留一圈安全区，
+       超出部分由宿主的 overflow: hidden 裁掉。
+       不折射的按钮/胶囊**不能外扩** —— 它们没有位移，扩出去只会把环带画到形状外面
+       （胶囊没有 overflow: hidden，就会看到一圈方圆轮廓挂在外面）。 */
+    @if $refract {
+      inset: calc(-1 * var(--lg-glass-bleed, 10px));
+      border-radius: calc(var(--lg-r, 22px) + var(--lg-glass-bleed, 10px));
+      --lg-bleed: var(--lg-glass-bleed, 10px);
+    } @else {
+      inset: 0;
+      border-radius: inherit;
+      --lg-bleed: 0px;
+    }
+
+    --lg-band: calc(var(--lg-lens, 4px) + var(--lg-lens-bleed, 8px));
+    --lg-edge: calc(var(--lg-bleed) + var(--lg-band));
+
+    /* 四向渐变取并集：外扩部分透明 → 宿主边缘开始上色 → --lg-edge 处淡出 */
+    -webkit-mask-image:
+      linear-gradient(to bottom, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to top, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to right, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to left, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge));
+    mask-image:
+      linear-gradient(to bottom, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to top, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to right, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge)),
+      linear-gradient(to left, transparent var(--lg-bleed), #000 var(--lg-bleed), transparent var(--lg-edge));
+
+    /* 折射本体：backdrop-filter 挂 SVG 位移滤镜（定义见 components/LiquidGlassRefract.vue）。
+       位移随距中心的距离增大，环带正好在边缘 → 那一圈的背景相对周围明显错开。
+       饱和/对比直接写进同一条 backdrop-filter 链里，避免再用 filter 多一次合成。
+       $refract: false 时不挂 SVG 滤镜（按钮/胶囊用，省掉最贵的那一遍）。 */
+    @if $refract {
+      -webkit-backdrop-filter: url(#sf-lg-refract) blur(2px) saturate(var(--lg-lens-saturate, 1.75))
+        contrast(var(--lg-lens-contrast, 1.08));
+      backdrop-filter: url(#sf-lg-refract) blur(2px) saturate(var(--lg-lens-saturate, 1.75))
+        contrast(var(--lg-lens-contrast, 1.08));
+    } @else {
+      -webkit-backdrop-filter: blur(2px) saturate(var(--lg-lens-saturate, 1.75))
+        contrast(var(--lg-lens-contrast, 1.08));
+      backdrop-filter: blur(2px) saturate(var(--lg-lens-saturate, 1.75))
+        contrast(var(--lg-lens-contrast, 1.08));
+    }
+
+    background-color: transparent;
+    /* 12 个等分色标（每 30° 一个）：每个颜色向两侧延伸，走到相邻色起点就停。
+       --lg-c0…--lg-c11 由 lib/glassLens.ts 采样后写入；没有背景图时用默认的白色微光。 */
+    background-image: conic-gradient(
+      from 0deg,
+      var(--lg-c0, rgba(255, 255, 255, 0.2)) 0%,
+      var(--lg-c1, rgba(255, 255, 255, 0.12)) 8.333%,
+      var(--lg-c2, rgba(255, 255, 255, 0.18)) 16.667%,
+      var(--lg-c3, rgba(255, 255, 255, 0.1)) 25%,
+      var(--lg-c4, rgba(255, 255, 255, 0.18)) 33.333%,
+      var(--lg-c5, rgba(255, 255, 255, 0.1)) 41.667%,
+      var(--lg-c6, rgba(255, 255, 255, 0.2)) 50%,
+      var(--lg-c7, rgba(255, 255, 255, 0.12)) 58.333%,
+      var(--lg-c8, rgba(255, 255, 255, 0.18)) 66.667%,
+      var(--lg-c9, rgba(255, 255, 255, 0.1)) 75%,
+      var(--lg-c10, rgba(255, 255, 255, 0.18)) 83.333%,
+      var(--lg-c11, rgba(255, 255, 255, 0.1)) 91.667%,
+      var(--lg-c0, rgba(255, 255, 255, 0.2)) 100%
+    );
+  }
+}

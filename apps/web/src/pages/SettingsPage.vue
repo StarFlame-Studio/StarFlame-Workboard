@@ -180,9 +180,10 @@
           </settings-card>
         </template>
 
-        <!-- 背景 -->
-        <template v-else-if="activeTab === 'background'">
+        <!-- 主题（自定义背景 + 卡片材质） -->
+        <template v-else-if="activeTab === 'theme'">
           <background-settings-card :model="settings" @save="saveAll" @update="onSettingUpdate" />
+          <card-theme-card :model="settings" @update="onSettingUpdate" />
         </template>
 
         <!-- 备份迁移 / 作业导入导出 -->
@@ -232,6 +233,7 @@ import StudentListCard from '@/components/settings/StudentListCard.vue'
 import TeacherListCard from '@/components/settings/TeacherListCard.vue'
 import SettingsLinkGenerator from '@/components/settings/SettingsLinkGenerator.vue'
 import BackgroundSettingsCard from '@/components/settings/BackgroundSettingsCard.vue'
+import CardThemeCard from '@/components/settings/CardThemeCard.vue'
 import NotificationSoundCard from '@/components/settings/NotificationSoundCard.vue'
 import ScheduleSettingsCard from '@/components/settings/ScheduleSettingsCard.vue'
 import HitokotoSettingsCard from '@/components/settings/HitokotoSettingsCard.vue'
@@ -283,7 +285,7 @@ const tabs = [
   { title: '通知铃声', icon: 'mdi-bell-ring', value: 'notification' },
   { title: '一言', icon: 'mdi-comment-quote', value: 'hitokoto' },
   { title: '随机点名', icon: 'mdi-dice-multiple', value: 'randomPicker' },
-  { title: '背景', icon: 'mdi-image', value: 'background' },
+  { title: '主题', icon: 'mdi-image', value: 'theme' },
   { title: '备份迁移', icon: 'mdi-cloud-sync-outline', value: 'transfer' },
   { title: '作业导入导出', icon: 'mdi-swap-vertical-bold', value: 'homeworkTransfer' },
   { title: '关于', icon: 'mdi-information', value: 'about' },
@@ -291,7 +293,9 @@ const tabs = [
 
 // 支持从首页「导入导出」等入口带 ?tab= 直接定位（必须放在 tabs 之后，避免 TDZ）
 const wantedTab = new URLSearchParams(window.location.search).get('tab')
-if (wantedTab && tabs.some((item) => item.value === wantedTab)) activeTab.value = wantedTab
+// 旧链接兼容：?tab=background 已并入「主题」页
+const resolvedTab = wantedTab === 'background' ? 'theme' : wantedTab
+if (resolvedTab && tabs.some((item) => item.value === resolvedTab)) activeTab.value = resolvedTab
 
 // 严格对齐原项目各卡片引用的设置项
 const group = {
