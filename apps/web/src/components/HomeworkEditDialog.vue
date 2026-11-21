@@ -9,8 +9,9 @@
       <v-card-subtitle>{{ autoSave ? autoSavePromptText : manualSavePromptText }}</v-card-subtitle>
 
       <v-card-text>
+        <!-- 教程高亮的「作业输入区」：输入框 + 粘贴按钮 + 模板/快捷短语按钮 + 数字键盘 -->
         <div class="d-flex">
-          <div class="flex-grow-1">
+          <div class="flex-grow-1" data-tutorial-anchor="hw-area">
             <v-textarea
               ref="inputRef"
               v-model="content"

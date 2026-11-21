@@ -4,7 +4,7 @@
       <!-- 高亮遮罩：一个超大的 box-shadow 把四周压暗，中间留出被讲解的元素 -->
       <div v-if="rect" :class="['tutorial-spotlight', { 'is-soft': current.softMask }]" :style="spotlightStyle" />
 
-      <div :class="['tutorial-card', rect ? 'is-anchored' : 'is-centered']" :style="cardStyle">
+      <div ref="cardEl" :class="['tutorial-card', rect ? 'is-anchored' : 'is-centered']" :style="cardStyle">
         <div class="tutorial-head">
           <v-icon class="tutorial-icon" color="primary" size="22">{{ current.icon }}</v-icon>
           <span class="tutorial-title">{{ current.title }}</span>
@@ -76,6 +76,8 @@ interface Box {
 
 const rect = ref<Box | null>(null)
 const cardStyle = ref<Record<string, string>>({})
+/** 说明卡片本身（真实的 DOM 高度比估算值准，用来避免卡片被挤到屏幕外） */
+const cardEl = ref<HTMLElement | null>(null)
 /**
  * 浮层被 teleport 到 body，脱离了 .v-theme--dark 的 DOM 作用域，
  * 所以卡片配色要自己判断当前是不是暗色主题。
@@ -126,6 +128,13 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+/** 卡片实际高度（布局像素）；还没渲染出来时退回估算值 */
+function cardHeight(): number {
+  const el = cardEl.value
+  const measured = el ? el.offsetHeight : 0
+  return measured > 0 ? measured : CARD_ESTIMATED_HEIGHT
+}
+
 /** 把说明卡片摆到目标附近；下方空间不够就翻到上方（坐标同样折算回布局像素） */
 function placeCard(box: Box): void {
   const scale = zoomScale()
@@ -148,43 +157,77 @@ function placeCard(box: Box): void {
     cardStyle.value = { left: left + 'px', width: width + 'px', top: '12px' }
     return
   }
+  const cardH = cardHeight()
   const spaceBelow = viewportH - target.top - target.height
-  if (spaceBelow >= CARD_ESTIMATED_HEIGHT + CARD_GAP) {
+  const spaceAbove = target.top
+  const need = cardH + CARD_GAP
+  if (spaceBelow >= need) {
+    // 目标下方放得下
     cardStyle.value = {
       left: left + 'px',
       width: width + 'px',
       top: target.top + target.height + CARD_GAP + 'px',
     }
-  } else {
+    return
+  }
+  if (spaceAbove >= need) {
+    // 翻到目标上方
     cardStyle.value = {
       left: left + 'px',
       width: width + 'px',
       bottom: viewportH - target.top + CARD_GAP + 'px',
     }
+    return
   }
+  // 目标几乎占满整屏（例如编辑窗口里的输入区）：卡片压到屏幕底部，别跑出可视区
+  cardStyle.value = {
+    left: left + 'px',
+    width: width + 'px',
+    top: Math.max(12, viewportH - cardH - 12) + 'px',
+  }
+}
+
+interface ResolvedTarget {
+  el: HTMLElement
+  closest?: string
+}
+
+/**
+ * 找到这一步要高亮的元素。
+ * 顺序：展开后的浮层（openSelector）→ targets 候选列表 → selector → fallbackSelector。
+ * targets 是为了同一个操作在不同设置下形态不同（有作业的卡片 / 空科目按钮 / 空科目卡片 / 手机端按钮）时都能指对。
+ */
+function resolveTarget(): ResolvedTarget | null {
+  const step = current.value
+  if (step.openSelector) {
+    const opened = document.querySelector<HTMLElement>(step.openSelector)
+    if (opened) return { el: opened }
+  }
+  for (const target of step.targets ?? []) {
+    const el = document.querySelector<HTMLElement>(target.selector)
+    if (el) return { el, closest: target.closest ?? step.highlightClosest }
+  }
+  if (step.selector) {
+    const el = document.querySelector<HTMLElement>(step.selector)
+    if (el) return { el, closest: step.highlightClosest }
+  }
+  if (step.fallbackSelector) {
+    const el = document.querySelector<HTMLElement>(step.fallbackSelector)
+    if (el) return { el, closest: step.highlightClosest }
+  }
+  return null
 }
 
 async function measure(): Promise<void> {
   if (!props.modelValue) return
   const step = current.value
-  // openSelector：目标元素还带一个「展开后的浮层」，浮层出现后改高亮浮层，方便用户操作
-  const selector =
-    step.openSelector && document.querySelector(step.openSelector) ? step.openSelector : step.selector
-  if (!selector) {
+  const resolved = resolveTarget()
+  if (!resolved) {
     rect.value = null
     cardStyle.value = {}
     return
   }
-  let found = document.querySelector<HTMLElement>(selector)
-  if (!found && step.fallbackSelector) {
-    found = document.querySelector<HTMLElement>(step.fallbackSelector)
-  }
-  if (!found) {
-    rect.value = null
-    cardStyle.value = {}
-    return
-  }
-  const target = (step.highlightClosest ? found.closest<HTMLElement>(step.highlightClosest) : null) ?? found
+  const target = (resolved.closest ? resolved.el.closest<HTMLElement>(resolved.closest) : null) ?? resolved.el
   const box = target.getBoundingClientRect()
   if (box.width < 2 || box.height < 2) {
     rect.value = null
