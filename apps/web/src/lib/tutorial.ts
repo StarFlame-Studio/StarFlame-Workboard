@@ -31,11 +31,24 @@ export type TutorialActionId =
   | 'font-size'
   | 'date-change'
 
+/**
+ * 一个候选高亮目标。
+ * 同一件事在不同设置/屏幕下的入口不同（有作业的科目卡、空科目按钮、空科目卡片、手机端按钮），
+ * 按顺序尝试，命中第一个就用它。
+ */
+export interface TutorialTarget {
+  selector: string
+  /** 命中后向上找最近的这个选择器，把整块区域一起高亮 */
+  closest?: string
+}
+
 export interface TutorialStep {
   /** 唯一标识，便于埋点与调试 */
   id: string
   title: string
   body: string
+  /** 候选高亮目标，按顺序取第一个存在的 */
+  targets?: TutorialTarget[]
   /** 要高亮的元素选择器；为空表示居中展示（没有具体指向） */
   selector?: string
   /** 命中 selector 后向上找最近的这个选择器，把整块区域一起高亮 */
@@ -70,21 +83,26 @@ export const BASIC_TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'homework',
     icon: 'mdi-book-open-page-variant',
-    title: '第一步：点开一张科目卡片',
-    body: '每张卡片是一个科目。点一下任意一张卡片，就能打开作业编辑窗口。',
-    selector: '.sf-subject-title',
-    highlightClosest: '.grid-item-inner',
+    title: '第一步：点开一个科目',
+    body: '卡片和按钮都是一个科目，点一下任意一个就能打开作业编辑窗口。已经布置过作业的科目显示成带内容的卡片；当天还没有作业的科目，按「设置」里的显示方式排成按钮或空卡片，两种都能点。',
+    // 同一个入口在不同设置下形态不同：有作业的卡片 / 空科目按钮 / 空科目卡片 / 手机端按钮
+    targets: [
+      { selector: '.grid-item-inner .sf-subject-title', closest: '.grid-item-inner' },
+      { selector: '.empty-buttons .empty-btn' },
+      { selector: '.empty-subjects-grid .empty-subject-card' },
+      { selector: '.empty-subjects .v-chip' },
+    ],
     action: 'open-homework-editor',
-    actionHint: '请点一下高亮的这张科目卡片',
+    actionHint: '请点一下高亮的科目卡片或按钮',
   },
   {
     id: 'homework-save',
     icon: 'mdi-content-save',
     title: '第二步：写下作业并保存',
-    body: '在输入框里写今天的作业内容（换行就是分条），写完点「保存」。保存后同班的大屏会自动同步显示。',
-    selector: '[data-tutorial-anchor="hw-save"]',
+    body: '在输入框里写今天的作业内容，换行就是分条。输入框下面那排按钮是快捷入口：「粘贴」「粘贴并完成」直接把复制好的作业贴进来；再往下的「书/复习/预习」等按钮点一下就能插入对应的常用短语，写完点「保存」，同班的大屏会自动同步。',
+    selector: '[data-tutorial-anchor="hw-area"]',
     // 用户中途把编辑窗口关掉时，指回科目卡片，点一下就能重新打开
-    fallbackSelector: '.sf-subject-title',
+    fallbackSelector: '.grid-item-inner .sf-subject-title',
     highlightClosest: '.grid-item-inner',
     action: 'close-homework-editor',
     actionHint: '写好内容后点「保存」',
