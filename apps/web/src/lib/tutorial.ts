@@ -2,8 +2,10 @@
  * 引导式教程（基础版）的数据与本地记忆。
  *
  * 首次进入作业板时会询问是否查看教程；看完或跳过都会记下，之后不再自动弹出。
- * 教程只依赖看板页真实存在的 DOM 元素（科目卡片、底部工具栏按钮），
- * 因此本地模式与在线模式走的是同一套逻辑，不需要区分数据源。
+ *
+ * 教程是「跟着做」型的：讲解到布置作业、调整字号、切换日期这几步时，
+ * 不给「下一步」按钮，而是等用户在看板上真的完成对应操作后自动推进，
+ * 这样用户是动手练过一遍，而不是只看了一遍文字。
  */
 
 /** 基础教程的版本号：以后教程内容大改时可以 +1，让老用户再看一遍新教程 */
@@ -19,6 +21,16 @@ const FORCE_KEY = 'sf.tutorial.force'
 const SNOOZE_KEY = 'sf.tutorial.basic.snoozeUntil'
 const SNOOZE_DAYS = 3
 
+/**
+ * 需要用户在页面上完成的动作。
+ * 看板页在这些动作发生时把信号传给教程浮层，浮层据此推进到下一步。
+ */
+export type TutorialActionId =
+  | 'open-homework-editor'
+  | 'close-homework-editor'
+  | 'font-size'
+  | 'date-change'
+
 export interface TutorialStep {
   /** 唯一标识，便于埋点与调试 */
   id: string
@@ -28,48 +40,82 @@ export interface TutorialStep {
   selector?: string
   /** 命中 selector 后向上找最近的这个选择器，把整块区域一起高亮 */
   highlightClosest?: string
+  /** 目标展开后会出现的浮层选择器（例如日历弹出后改指日历本身） */
+  openSelector?: string
+  /** selector 找不到时的备用目标（例如编辑窗口被关掉后指回科目卡片） */
+  fallbackSelector?: string
   /** 步骤图标（mdi） */
   icon: string
+  /** 需要用户完成的动作；有值时这一步不显示「下一步」，由真实操作推进 */
+  action?: TutorialActionId
+  /** 行动提示：告诉用户现在该做什么，显示在卡片按钮位置 */
+  actionHint?: string
+  /** 卡片摆放方式：above = 贴着目标上方（默认），top = 屏幕顶部居中（目标下方会弹出面板时用） */
+  cardPlacement?: 'above' | 'top'
+  /** 这一步的目标在对话框里，遮罩调淡一些，别把编辑窗口压得看不清 */
+  softMask?: boolean
 }
 
 /**
- * 基础教程步骤：欢迎 → 布置作业 → 调整字体 → 切换日期 → 结束。
- * 文案尽量口语化，一条只说一件事。
+ * 基础教程步骤：欢迎 → 布置作业（点开卡片 + 保存）→ 调整字体 → 切换日期 → 结束。
+ * 文案尽量口语化，一条只说一件事；有 action 的步骤必须真的做一次才会前进。
  */
 export const BASIC_TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'welcome',
     icon: 'mdi-gesture-tap',
     title: '欢迎使用星焰作业板',
-    body: '这是一块每天给全班看作业的看板。花一分钟看完这份引导，你就会布置作业、调整字号和切换日期了。',
+    body: '这是一块每天给全班看作业的看板。这份引导不长，但需要你跟着点几下——布置作业、调整字号、切换日期，练一遍就会了。',
   },
   {
     id: 'homework',
     icon: 'mdi-book-open-page-variant',
-    title: '怎么布置作业',
-    body: '点击任意一张科目卡片，就能打开作业编辑窗口；写好内容点「保存」即可，同班的大屏会自动同步显示。还没作业的科目，点页面下方带「+」的科目名就能添加。',
+    title: '第一步：点开一张科目卡片',
+    body: '每张卡片是一个科目。点一下任意一张卡片，就能打开作业编辑窗口。',
     selector: '.sf-subject-title',
     highlightClosest: '.grid-item-inner',
+    action: 'open-homework-editor',
+    actionHint: '请点一下高亮的这张科目卡片',
+  },
+  {
+    id: 'homework-save',
+    icon: 'mdi-content-save',
+    title: '第二步：写下作业并保存',
+    body: '在输入框里写今天的作业内容（换行就是分条），写完点「保存」。保存后同班的大屏会自动同步显示。',
+    selector: '[data-tutorial-anchor="hw-save"]',
+    // 用户中途把编辑窗口关掉时，指回科目卡片，点一下就能重新打开
+    fallbackSelector: '.sf-subject-title',
+    highlightClosest: '.grid-item-inner',
+    action: 'close-homework-editor',
+    actionHint: '写好内容后点「保存」',
+    softMask: true,
   },
   {
     id: 'font-size',
     icon: 'mdi-format-font-size-increase',
-    title: '怎么调整字体大小',
-    body: '点底部工具条上的 A+ 放大字号、A− 缩小字号，后排同学也能看清。字号会记在这台设备上，下次打开还是这个大小。',
+    title: '第三步：调整字体大小',
+    body: '屏幕下方的工具条上，A+ 放大字号、A− 缩小字号，后排同学也能看清。字号会记在这台设备上，下次打开还是这个大小。',
     selector: '[title="放大字体"]',
+    action: 'font-size',
+    actionHint: '请点一下高亮的 A+ 按钮',
   },
   {
     id: 'change-date',
     icon: 'mdi-calendar',
-    title: '怎么切换日期',
-    body: '点中间的日历按钮可以看任意一天的作业；两边的箭头是「昨天」和「明天」。翻到别的日期时，还能一键把当天的作业复制到今天。',
+    title: '第四步：切换日期',
+    body: '点日历按钮可以看任意一天的作业，两边的箭头是「昨天」和「明天」。翻到别的日期时，还会出现「复制到今天」按钮。',
     selector: '[title="选择日期"]',
+    // 点开后日历会盖在工具条上方，改指日历本身，用户才好点日期
+    openSelector: '.date-picker-card',
+    action: 'date-change',
+    actionHint: '点开日历，随便选一天试试',
+    cardPlacement: 'top',
   },
   {
     id: 'done',
     icon: 'mdi-check-circle-outline',
     title: '基础操作都学会啦',
-    body: '教程到这里结束，随时可以在「设置 → 首页」里重新观看。现在开始布置今天的作业吧。',
+    body: '布置作业、调整字号、切换日期，你都已经亲手练过一遍。教程结束后会自动把日期切回今天，随时可以在「设置 → 首页」里重新观看。',
   },
 ]
 

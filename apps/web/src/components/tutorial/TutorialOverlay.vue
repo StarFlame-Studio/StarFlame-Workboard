@@ -2,7 +2,7 @@
   <teleport to="body">
     <div v-if="modelValue" :class="['tutorial-root', { 'is-dark': isDark }]" @keydown="onKeydown">
       <!-- 高亮遮罩：一个超大的 box-shadow 把四周压暗，中间留出被讲解的元素 -->
-      <div v-if="rect" class="tutorial-spotlight" :style="spotlightStyle" />
+      <div v-if="rect" :class="['tutorial-spotlight', { 'is-soft': current.softMask }]" :style="spotlightStyle" />
 
       <div :class="['tutorial-card', rect ? 'is-anchored' : 'is-centered']" :style="cardStyle">
         <div class="tutorial-head">
@@ -11,12 +11,25 @@
           <span class="tutorial-count">{{ index + 1 }} / {{ steps.length }}</span>
         </div>
         <p class="tutorial-body">{{ current.body }}</p>
+
+        <!-- 需要动手的步骤：不给「下一步」，等用户真的做完动作再自动前进 -->
+        <div v-if="current.action" class="tutorial-doing">
+          <v-icon class="tutorial-doing-icon" color="primary" size="18">mdi-gesture-tap-button</v-icon>
+          <span>{{ current.actionHint }}</span>
+          <v-progress-circular class="ml-2" color="primary" indeterminate size="14" width="2" />
+        </div>
+
         <div class="tutorial-actions">
-          <v-btn class="text-medium-emphasis" variant="text" @click="skip">跳过教程</v-btn>
+          <v-btn class="text-medium-emphasis" size="small" variant="text" @click="skip">跳过教程</v-btn>
           <v-spacer />
-          <v-btn v-if="index > 0" variant="tonal" @click="prev">上一步</v-btn>
-          <v-btn v-if="!isLast" color="primary" variant="elevated" @click="next">下一步</v-btn>
-          <v-btn v-else color="primary" prepend-icon="mdi-check" variant="elevated" @click="finish">我知道了</v-btn>
+          <template v-if="current.action">
+            <v-btn class="text-medium-emphasis" size="small" variant="text" @click="skipStep">跳过这一步</v-btn>
+          </template>
+          <template v-else>
+            <v-btn v-if="index > 0" variant="tonal" @click="prev">上一步</v-btn>
+            <v-btn v-if="!isLast" color="primary" variant="elevated" @click="next">下一步</v-btn>
+            <v-btn v-else color="primary" prepend-icon="mdi-check" variant="elevated" @click="finish">我知道了</v-btn>
+          </template>
         </div>
       </div>
     </div>
@@ -28,11 +41,16 @@
  * 引导式教程浮层（基础版）。
  *
  * 每一步用 selector 指到看板上真实存在的元素，浮层把该元素框出来并压暗其余区域，
- * 说明卡片自动放在目标下方（空间不够时放上方）。找不到目标元素时退化为居中卡片，
- * 教程依然能走完 —— 例如当天所有科目都还没作业、页面结构被精简时。
+ * 说明卡片自动放在目标附近（空间不够时换位置）。
+ *
+ * 「跟着做」的步骤带 action：不给「下一步」按钮，而是由看板页在用户真的完成操作后
+ * 调用 notifyAction() 推进，因此用户是先动手练一遍再进入下一步。
+ *
+ * 找不到目标元素时退化为居中卡片，教程依然能走完 —— 例如设备是只读模式、
+ * 当天所有科目都还没作业、页面结构被精简时。
  */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { BASIC_TUTORIAL_STEPS, type TutorialStep } from '@/lib/tutorial'
+import { BASIC_TUTORIAL_STEPS, type TutorialActionId, type TutorialStep } from '@/lib/tutorial'
 
 const props = withDefaults(defineProps<{ modelValue: boolean; steps?: TutorialStep[] }>(), {
   modelValue: false,
@@ -68,6 +86,11 @@ const CARD_WIDTH = 460
 const CARD_GAP = 18
 /** 卡片估算高度：只用于判断目标下方放不放得下，宁大勿小 */
 const CARD_ESTIMATED_HEIGHT = 220
+/** 目标在可视区外时只自动滚动一次，避免轮询里反复滚动抖动 */
+let scrolledFor = ''
+/** 轮询测量：页面内容会变（打开编辑窗口、日历弹出），需要让高亮框跟着走 */
+let pollTimer: number | null = null
+let advanceTimer: number | null = null
 
 /**
  * 桌面端（逻辑宽度 ≥960px）整站给 html 加了 zoom: 1.15。
@@ -120,6 +143,11 @@ function placeCard(box: Box): void {
     12,
     Math.max(12, viewportW - width - 12),
   )
+  if (current.value.cardPlacement === 'top') {
+    // 目标下方会弹出面板（例如日历）时，卡片固定贴到屏幕顶部，别挡住面板
+    cardStyle.value = { left: left + 'px', width: width + 'px', top: '12px' }
+    return
+  }
   const spaceBelow = viewportH - target.top - target.height
   if (spaceBelow >= CARD_ESTIMATED_HEIGHT + CARD_GAP) {
     cardStyle.value = {
@@ -137,26 +165,38 @@ function placeCard(box: Box): void {
 }
 
 async function measure(): Promise<void> {
-  rect.value = null
-  cardStyle.value = {}
   if (!props.modelValue) return
-  await nextTick()
   const step = current.value
-  const selector = step.selector
-  if (!selector) return
-  const found = document.querySelector<HTMLElement>(selector)
-  if (!found) return
+  // openSelector：目标元素还带一个「展开后的浮层」，浮层出现后改高亮浮层，方便用户操作
+  const selector =
+    step.openSelector && document.querySelector(step.openSelector) ? step.openSelector : step.selector
+  if (!selector) {
+    rect.value = null
+    cardStyle.value = {}
+    return
+  }
+  let found = document.querySelector<HTMLElement>(selector)
+  if (!found && step.fallbackSelector) {
+    found = document.querySelector<HTMLElement>(step.fallbackSelector)
+  }
+  if (!found) {
+    rect.value = null
+    cardStyle.value = {}
+    return
+  }
   const target = (step.highlightClosest ? found.closest<HTMLElement>(step.highlightClosest) : null) ?? found
   const box = target.getBoundingClientRect()
-  if (box.width < 2 || box.height < 2) return
+  if (box.width < 2 || box.height < 2) {
+    rect.value = null
+    cardStyle.value = {}
+    return
+  }
   // 目标可能在可视区外（例如下方空闲科目区），先滚进来再重新测量
-  if (box.top < 8 || box.bottom > window.innerHeight - 8) {
+  if ((box.top < 8 || box.bottom > window.innerHeight - 8) && scrolledFor !== step.id) {
+    scrolledFor = step.id
     target.scrollIntoView({ block: 'center', behavior: 'smooth' })
     window.setTimeout(() => {
-      if (!props.modelValue) return
-      const again = target.getBoundingClientRect()
-      rect.value = { top: again.top, left: again.left, width: again.width, height: again.height }
-      placeCard(rect.value)
+      if (props.modelValue) void measure()
     }, 320)
     return
   }
@@ -177,6 +217,28 @@ function prev(): void {
   index.value -= 1
 }
 
+/** 跳过当前这一步（只用于「跟着做」的步骤，避免只读设备上卡住） */
+function skipStep(): void {
+  next()
+}
+
+/**
+ * 看板页在用户完成动作后调用；只有和当前步骤要求的动作一致才前进。
+ * 稍微延迟一点，让用户先看到自己的操作确实生效了。
+ */
+function notifyAction(action: TutorialActionId): void {
+  if (!props.modelValue) return
+  if (current.value.action !== action) return
+  if (advanceTimer !== null) return
+  advanceTimer = window.setTimeout(() => {
+    advanceTimer = null
+    if (!props.modelValue) return
+    if (current.value.action === action) next()
+  }, 260)
+}
+
+defineExpose({ notifyAction })
+
 function close(finished: boolean): void {
   emit('update:modelValue', false)
   if (finished) emit('finish')
@@ -191,10 +253,15 @@ function finish(): void {
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  // 编辑窗口打开时键盘交给窗口自己（Esc 关窗口、回车换行），教程不抢键
+  if (document.querySelector('[data-tutorial-anchor="hw-dialog"]')) return
+  const target = event.target as HTMLElement | null
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
   if (event.key === 'Escape') {
     skip()
     return
   }
+  if (current.value.action) return
   if (event.key === 'ArrowRight' || event.key === 'Enter') {
     event.preventDefault()
     next()
@@ -202,6 +269,18 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'ArrowLeft') {
     event.preventDefault()
     prev()
+  }
+}
+
+function startPolling(): void {
+  stopPolling()
+  pollTimer = window.setInterval(() => void measure(), 500)
+}
+
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer)
+    pollTimer = null
   }
 }
 
@@ -215,12 +294,19 @@ watch(
     if (open) {
       isDark.value = Boolean(document.querySelector('.v-theme--dark'))
       index.value = 0
+      scrolledFor = ''
       window.addEventListener('resize', onResize)
       window.addEventListener('keydown', onKeydown)
+      startPolling()
       void measure()
     } else {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('keydown', onKeydown)
+      stopPolling()
+      if (advanceTimer !== null) {
+        window.clearTimeout(advanceTimer)
+        advanceTimer = null
+      }
       rect.value = null
       cardStyle.value = {}
     }
@@ -228,12 +314,14 @@ watch(
 )
 
 watch(index, () => {
-  void measure()
+  void nextTick().then(() => measure())
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)
+  stopPolling()
+  if (advanceTimer !== null) window.clearTimeout(advanceTimer)
 })
 </script>
 
@@ -256,6 +344,12 @@ onBeforeUnmount(() => {
     width 0.25s ease,
     height 0.25s ease;
   pointer-events: none;
+}
+
+/* 编辑窗口里的步骤：遮罩淡一些，别把要操作的窗口压得看不清 */
+.tutorial-spotlight.is-soft {
+  box-shadow: 0 0 0 9999px rgba(15, 12, 10, 0.34);
+  border-radius: 12px;
 }
 
 .tutorial-card {
@@ -330,10 +424,38 @@ onBeforeUnmount(() => {
 }
 
 .tutorial-body {
-  margin: 10px 0 14px;
+  margin: 10px 0 12px;
   font-size: 15px;
   line-height: 1.75;
   color: var(--text-2, #5b5049);
+}
+
+.tutorial-doing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--brand-soft, #fff1e4);
+  color: var(--brand-2, #f4511e);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tutorial-doing-icon {
+  flex: none;
+  animation: tutorial-nudge 1.6s ease-in-out infinite;
+}
+
+@keyframes tutorial-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
 }
 
 .tutorial-actions {
@@ -363,5 +485,10 @@ onBeforeUnmount(() => {
 
 .tutorial-root.is-dark .tutorial-count {
   color: #9a8d82;
+}
+
+.tutorial-root.is-dark .tutorial-doing {
+  background: rgba(255, 138, 31, 0.16);
+  color: #ffab5e;
 }
 </style>
