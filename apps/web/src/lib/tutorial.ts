@@ -57,6 +57,8 @@ export interface TutorialStep {
   openSelector?: string
   /** selector 找不到时的备用目标（例如编辑窗口被关掉后指回科目卡片） */
   fallbackSelector?: string
+  /** 必须让人看见的区域（如编辑窗口的「保存」按钮）：小屏幕上卡片会主动避开它，避免挡住操作 */
+  avoidSelector?: string
   /** 步骤图标（mdi） */
   icon: string
   /** 需要用户完成的动作；有值时这一步不显示「下一步」，由真实操作推进 */
@@ -103,6 +105,8 @@ export const BASIC_TUTORIAL_STEPS: TutorialStep[] = [
     selector: '[data-tutorial-anchor="hw-area"]',
     // 用户中途把编辑窗口关掉时，指回科目卡片，点一下就能重新打开
     fallbackSelector: '.grid-item-inner .sf-subject-title',
+    // 小屏幕下卡片别压住「保存」，否则这一步没法完成
+    avoidSelector: '[data-tutorial-anchor="hw-save"]',
     highlightClosest: '.grid-item-inner',
     action: 'close-homework-editor',
     actionHint: '写好内容后点「保存」',

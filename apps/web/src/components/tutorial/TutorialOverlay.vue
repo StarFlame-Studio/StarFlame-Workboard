@@ -4,7 +4,11 @@
       <!-- 高亮遮罩：一个超大的 box-shadow 把四周压暗，中间留出被讲解的元素 -->
       <div v-if="rect" :class="['tutorial-spotlight', { 'is-soft': current.softMask }]" :style="spotlightStyle" />
 
-      <div ref="cardEl" :class="['tutorial-card', rect ? 'is-anchored' : 'is-centered']" :style="cardStyle">
+      <div
+        ref="cardEl"
+        :class="['tutorial-card', rect ? 'is-anchored' : 'is-centered', { 'is-compact': isCompact }]"
+        :style="cardStyle"
+      >
         <div class="tutorial-head">
           <v-icon class="tutorial-icon" color="primary" size="22">{{ current.icon }}</v-icon>
           <span class="tutorial-title">{{ current.title }}</span>
@@ -83,8 +87,14 @@ const cardEl = ref<HTMLElement | null>(null)
  * 所以卡片配色要自己判断当前是不是暗色主题。
  */
 const isDark = ref(false)
+/**
+ * 小屏幕（笔记本小窗、平板、手机）上卡片要更紧凑：
+ * 字号和间距收一档，宽度也窄一些，免得压掉半个看板。
+ */
+const isCompact = ref(false)
 
 const CARD_WIDTH = 460
+const COMPACT_CARD_WIDTH = 360
 const CARD_GAP = 18
 /** 卡片估算高度：只用于判断目标下方放不放得下，宁大勿小 */
 const CARD_ESTIMATED_HEIGHT = 220
@@ -135,56 +145,84 @@ function cardHeight(): number {
   return measured > 0 ? measured : CARD_ESTIMATED_HEIGHT
 }
 
-/** 把说明卡片摆到目标附近；下方空间不够就翻到上方（坐标同样折算回布局像素） */
-function placeCard(box: Box): void {
+interface Placement {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+/** 两个矩形重叠的面积（不相交为 0），用于挑一个不挡东西的位置 */
+function overlapArea(a: Placement, b: Placement): number {
+  const w = Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left)
+  const h = Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top)
+  return w > 0 && h > 0 ? w * h : 0
+}
+
+/**
+ * 把说明卡片摆到目标附近。
+ *
+ * 不能简单地「下方放不下就翻上方」——小屏幕上卡片本身就占掉大半屏，
+ * 很容易压住要高亮的按钮或编辑窗口的「保存」，用户就点不到了。
+ * 这里列出候选位置（下 / 上 / 左 / 右 / 四角），逐个算与「高亮目标」和
+ * 「必须让人看见的区域」（avoidSelector）的重叠面积，取重叠最小的那个，
+ * 并且永远夹在可视区内。
+ */
+function placeCard(box: Box, avoid: Placement | null): void {
   const scale = zoomScale()
   const viewportW = window.innerWidth / scale
   const viewportH = window.innerHeight / scale
-  const target = {
+  const target: Placement = {
     top: box.top / scale,
     left: box.left / scale,
     width: box.width / scale,
     height: box.height / scale,
   }
-  const width = Math.min(CARD_WIDTH, viewportW - 24)
-  const left = clamp(
-    target.left + target.width / 2 - width / 2,
-    12,
-    Math.max(12, viewportW - width - 12),
-  )
+  const width = Math.min(isCompact.value ? COMPACT_CARD_WIDTH : CARD_WIDTH, viewportW - 24)
+  const cardH = Math.min(cardHeight(), viewportH - 24)
+  const minLeft = 12
+  const maxLeft = Math.max(minLeft, viewportW - width - 12)
+  const minTop = 12
+  const maxTop = Math.max(minTop, viewportH - cardH - 12)
+  const clampLeft = (value: number): number => clamp(value, minLeft, maxLeft)
+  const clampTop = (value: number): number => clamp(value, minTop, maxTop)
+  const centerLeft = clampLeft(target.left + target.width / 2 - width / 2)
+
   if (current.value.cardPlacement === 'top') {
     // 目标下方会弹出面板（例如日历）时，卡片固定贴到屏幕顶部，别挡住面板
-    cardStyle.value = { left: left + 'px', width: width + 'px', top: '12px' }
+    cardStyle.value = { left: centerLeft + 'px', width: width + 'px', top: '12px' }
     return
   }
-  const cardH = cardHeight()
-  const spaceBelow = viewportH - target.top - target.height
-  const spaceAbove = target.top
-  const need = cardH + CARD_GAP
-  if (spaceBelow >= need) {
-    // 目标下方放得下
-    cardStyle.value = {
-      left: left + 'px',
-      width: width + 'px',
-      top: target.top + target.height + CARD_GAP + 'px',
+
+  const midTop = clampTop(target.top + target.height / 2 - cardH / 2)
+  const rightOfTarget = clampLeft(target.left + target.width + CARD_GAP)
+  const leftOfTarget = clampLeft(target.left - width - CARD_GAP)
+  const candidates: Placement[] = [
+    // 依次尝试：目标下方 → 上方 → 右侧 → 左侧 → 四角
+    { top: clampTop(target.top + target.height + CARD_GAP), left: centerLeft, width, height: cardH },
+    { top: clampTop(target.top - cardH - CARD_GAP), left: centerLeft, width, height: cardH },
+    { top: midTop, left: rightOfTarget, width, height: cardH },
+    { top: midTop, left: leftOfTarget, width, height: cardH },
+    { top: minTop, left: minLeft, width, height: cardH },
+    { top: minTop, left: maxLeft, width, height: cardH },
+    { top: maxTop, left: minLeft, width, height: cardH },
+    { top: maxTop, left: maxLeft, width, height: cardH },
+  ]
+
+  let best = candidates[0]!
+  let bestScore = Number.POSITIVE_INFINITY
+  for (const candidate of candidates) {
+    const coveredTarget = overlapArea(candidate, target)
+    const coveredAvoid = avoid ? overlapArea(candidate, avoid) : 0
+    // 挡住高亮目标最致命（那就没法点了），挡住 avoid 区域次之
+    const score = coveredTarget * 4 + coveredAvoid
+    if (score < bestScore - 0.5) {
+      bestScore = score
+      best = candidate
+      if (score === 0) break
     }
-    return
   }
-  if (spaceAbove >= need) {
-    // 翻到目标上方
-    cardStyle.value = {
-      left: left + 'px',
-      width: width + 'px',
-      bottom: viewportH - target.top + CARD_GAP + 'px',
-    }
-    return
-  }
-  // 目标几乎占满整屏（例如编辑窗口里的输入区）：卡片压到屏幕底部，别跑出可视区
-  cardStyle.value = {
-    left: left + 'px',
-    width: width + 'px',
-    top: Math.max(12, viewportH - cardH - 12) + 'px',
-  }
+  cardStyle.value = { left: best.left + 'px', width: best.width + 'px', top: best.top + 'px' }
 }
 
 interface ResolvedTarget {
@@ -244,7 +282,21 @@ async function measure(): Promise<void> {
     return
   }
   rect.value = { top: box.top, left: box.left, width: box.width, height: box.height }
-  placeCard(rect.value)
+  placeCard(rect.value, avoidRect())
+}
+
+/**
+ * 「必须让人看见 / 点到」的区域：例如编辑窗口里的「保存」按钮。
+ * 小屏幕上卡片很容易把它压住，导致这一步做不下去。
+ */
+function avoidRect(): Box | null {
+  const selector = current.value.avoidSelector
+  if (!selector) return null
+  const el = document.querySelector<HTMLElement>(selector)
+  if (!el) return null
+  const box = el.getBoundingClientRect()
+  if (box.width < 2 || box.height < 2) return null
+  return { top: box.top, left: box.left, width: box.width, height: box.height }
 }
 
 function next(): void {
@@ -315,6 +367,18 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+/**
+ * 判定「小屏幕」。
+ * 注意整站在逻辑宽度 ≥960px 时给 html 加了 zoom，window.innerWidth 已经是缩放后的值，
+ * 所以用探针倍率把宽度还原成布局像素再判断，否则 1366 宽的笔记本会被当成 1187px。
+ */
+function updateCompact(): void {
+  const scale = zoomScale()
+  const layoutWidth = window.innerWidth / scale
+  const layoutHeight = window.innerHeight / scale
+  isCompact.value = layoutWidth < 1280 || layoutHeight < 760
+}
+
 function startPolling(): void {
   stopPolling()
   pollTimer = window.setInterval(() => void measure(), 500)
@@ -328,6 +392,7 @@ function stopPolling(): void {
 }
 
 function onResize(): void {
+  updateCompact()
   void measure()
 }
 
@@ -336,6 +401,7 @@ watch(
   (open) => {
     if (open) {
       isDark.value = Boolean(document.querySelector('.v-theme--dark'))
+      updateCompact()
       index.value = 0
       scrolledFor = ''
       window.addEventListener('resize', onResize)
@@ -415,6 +481,10 @@ onBeforeUnmount(() => {
 
 .tutorial-card.is-anchored {
   transform: none;
+}
+
+.tutorial-card.is-centered.is-compact {
+  width: min(360px, calc(100vw - 24px));
 }
 
 @keyframes tutorial-pop {
@@ -505,6 +575,35 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 小屏幕：卡片收一档，正文最多占半屏并可滚动，保证高亮目标与说明同时可见 */
+.tutorial-card.is-compact {
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+}
+
+.tutorial-card.is-compact .tutorial-title {
+  font-size: 15px;
+}
+
+.tutorial-card.is-compact .tutorial-body {
+  margin: 8px 0 10px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+
+.tutorial-card.is-compact .tutorial-doing {
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.tutorial-card.is-compact .tutorial-actions :deep(.v-btn) {
+  height: 32px;
+  font-size: 13px;
 }
 
 @media (max-width: 600px) {
