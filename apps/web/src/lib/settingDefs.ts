@@ -32,7 +32,7 @@ export const SETTING_DEFS: SettingDef[] = [
     options: [{ title: '明亮', value: 'light' }, { title: '暗黑', value: 'dark' }] },
   // 卡片主题是「看板材质」，属于班级设置（与看板一起同步到所有设备），所以不加 local
   { key: 'theme.card', title: '卡片主题', desc: '学科卡片与底栏按钮的外观风格', icon: 'mdi-palette-outline', type: 'select', default: 'default',
-    options: [{ title: '默认', value: 'default' }, { title: '液态玻璃', value: 'liquid' }] },
+    options: [{ title: '默认', value: 'default' }, { title: '玻璃', value: 'glass' }] },
   bool('timeCard.enabled', '启用时间卡片', true, 'mdi-clock-outline', '大号时钟与日期'),
   { key: 'display.emptySubjectDisplay', title: '空科目的显示方式', desc: '当日无作业的科目如何展示', icon: 'mdi-card-plus-outline', type: 'select', default: 'button',
     options: [{ title: '卡片', value: 'card' }, { title: '按钮', value: 'button' }] },

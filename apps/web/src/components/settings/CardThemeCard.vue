@@ -12,7 +12,7 @@
       >
         <span class="ct-stage">
           <span aria-hidden="true" class="ct-stage__art" />
-          <span class="ct-card" :class="opt.value === 'liquid' ? 'ct-card--liquid' : 'ct-card--default'">
+          <span class="ct-card" :class="opt.value === 'glass' ? 'ct-card--glass' : 'ct-card--default'">
             <span class="ct-card__bar" />
             <span class="ct-card__title" />
             <span class="ct-card__line" />
@@ -27,8 +27,8 @@
     </div>
 
     <p class="ct-hint">
-      液态玻璃 = <b>包边</b>（1px 受光亮线 + 顶部高光，标出玻璃边界）+ <b>玻璃</b>（全透明，2px 高斯模糊 + 提饱和度 1.7 + 微提对比度 1.04）。
-      搭配自定义背景图或深色壁纸时，玻璃的通透感最明显。
+      玻璃 = <b>全透明</b> + <b>4px 白色包边</b>（胶囊按钮 3px）。没有模糊、没有折射、没有色带，
+      卡片背后是什么就直接透出什么；搭配自定义背景图时边界最清楚。
     </p>
   </settings-card>
 </template>
@@ -43,7 +43,7 @@ const emit = defineEmits<{ update: [key: string, value: unknown] }>()
 
 const OPTIONS: Array<{ value: CardThemeMode; title: string }> = [
   { value: 'default', title: '默认' },
-  { value: 'liquid', title: '液态玻璃' },
+  { value: 'glass', title: '玻璃' },
 ]
 
 const current = computed(() => cardThemeSetting(props.model))
@@ -55,7 +55,7 @@ function choose(value: CardThemeMode): void {
 </script>
 
 <style lang="scss" scoped>
-@use '../../styles/lg-mixins' as lg;
+@use '../../styles/glass-mixins' as g;
 
 .ct-options {
   display: flex;
@@ -113,19 +113,14 @@ function choose(value: CardThemeMode): void {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
 }
 
-/* 预览直接复用生产用的混入，保证「所见即所得」 */
-.ct-card--liquid {
-  --lg-rim: rgba(255, 255, 255, 0.55);
-  --lg-rim-top: rgba(255, 255, 255, 0.95);
-  /* 预览卡只有 50px 高，环带淡出长度按比例缩小；圆角 10px 要和实际边框一致 */
-  --lg-lens: 3px;
-  --lg-lens-bleed: 3px;
-  --lg-r: 10px;
-  /* 环带外扩量也要缩小：这是给折射位移留的安全区，预览卡不需要 10px */
-  --lg-glass-bleed: 4px;
-  @include lg.lg-glass;
-  /* 透镜环带：预览页没有注入 SVG 折射滤镜，用 blur 档，形状/配色与看板一致 */
-  @include lg.lg-lens($refract: false);
+/* 预览复用生产用的混入，保证「所见即所得」：毛玻璃 + 细描边 */
+.ct-card--glass {
+  /* 预览底板是深色渐变，用深色那套参数才看得清 */
+  --glass-bg: rgba(30, 30, 30, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  --glass-blur: 10px;
+  @include g.glass;
 
   /* 混入里带了 position: relative（为看板上的真实卡片准备），预览这里要还原成绝对定位 */
   position: absolute;
@@ -161,8 +156,8 @@ function choose(value: CardThemeMode): void {
   width: 62%;
 }
 
-.ct-card--liquid .ct-card__title,
-.ct-card--liquid .ct-card__line {
+.ct-card--glass .ct-card__title,
+.ct-card--glass .ct-card__line {
   background: rgba(255, 255, 255, 0.86);
   opacity: 1;
 }
