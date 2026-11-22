@@ -171,6 +171,7 @@
             class="wall-att"
             @click="attDialogOpen = true"
           >
+            <liquid-glass />
             <div class="wall-att-head">
               <v-icon color="primary" size="small">mdi-account-group</v-icon>
               <span>出勤统计</span>
@@ -232,6 +233,7 @@
               :class="{ 'is-empty': !card.content }"
               @click="openEditorById(card.key)"
             >
+              <liquid-glass />
               <header class="wall-card-head">
                 <span class="wall-dot" :style="{ background: card.color }" />
                 <span class="wall-name">{{ card.name }}</span>
@@ -249,16 +251,11 @@
 
           <div v-if="emptyCustomCards.length > 0 && !isReadOnly" class="wall-foot">
             <span class="wall-foot-label">自定义卡片</span>
-            <v-chip
-              v-for="card in emptyCustomCards"
-              :key="card.id"
-              color="primary"
-              size="small"
-              variant="tonal"
-              @click="openEditorById('custom-' + card.id)"
-            >
-              <v-icon start size="small">mdi-plus</v-icon>{{ card.title }}
-            </v-chip>
+            <liquid-glass-pill v-for="card in emptyCustomCards" :key="card.id">
+              <v-chip color="primary" size="small" variant="tonal" @click="openEditorById('custom-' + card.id)">
+                <v-icon start size="small">mdi-plus</v-icon>{{ card.title }}
+              </v-chip>
+            </liquid-glass-pill>
           </div>
         </section>
       </div>
@@ -532,11 +529,14 @@ import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSou
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
 import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
+import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
 
 import { navigate, type PageName } from '@/lib/nav'
 import { useSessionStore } from '@/stores/session'
 import { useBoardStore } from '@/stores/board'
 import HomeworkGrid from '@/components/home/HomeworkGrid.vue'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
+import LiquidGlassPill from '@/components/ui/LiquidGlassPill.vue'
 import logoUrl from '@/assets/logo.svg'
 import MarqueeText from '@/components/home/MarqueeText.vue'
 import TimeCard from '@/components/TimeCard.vue'
@@ -889,10 +889,12 @@ const studentNames = computed(() => board.students.map((item) => item.name))
 
 const settings = computed(() => (board.data?.settings ?? {}) as Record<string, unknown>)
 
-// 卡片主题（默认 / 玻璃）：只往 <html> 挂类名，材质全部由 styles/glass.scss 承担。
+// 卡片主题（默认 / 玻璃 / 液态玻璃）：只往 <html> 挂类名，材质全部由 styles/*.scss 承担。
+// 液态玻璃还额外把 liquid.* 那组参数翻译成 CSS 变量 + 折射层 props。
 // 设置页改完返回看板时，bootstrap 会带回新的 settings，这里随之切换。
 watchEffect(() => {
   applyCardTheme(cardThemeSetting(settings.value))
+  applyLiquidGlassConfig(readLiquidGlassConfig(settings.value))
 })
 
 // 作息时间表 -> 桌面主进程：上课时段暂停静默更新（网页端为空操作）
