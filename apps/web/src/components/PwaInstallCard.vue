@@ -1,5 +1,6 @@
 <template>
-  <v-card v-if="visible" border class="mt-4" variant="flat">
+  <v-card v-if="visible" border class="pwa-install-card mt-4" variant="flat">
+    <liquid-glass />
     <v-card-title class="d-flex align-center text-subtitle-1">
       安装应用与授权
       <v-spacer />
@@ -37,6 +38,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
 
 interface Item {
   key: string

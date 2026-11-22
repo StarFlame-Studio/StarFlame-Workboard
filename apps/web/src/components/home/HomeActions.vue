@@ -1,71 +1,63 @@
 <template>
   <div class="home-actions d-flex flex-wrap align-center mt-4">
-    <v-btn v-if="!synced" :loading="loadingUpload" class="act act-upload" @click="$emit('upload')">
-      上传
-    </v-btn>
-    <v-btn class="act act-sync" prepend-icon="mdi-check-circle-outline" @click="$emit('show-sync-message')">
-      同步完成
-    </v-btn>
+    <liquid-glass-pill v-if="!synced">
+      <v-btn :loading="loadingUpload" class="act act-upload" @click="$emit('upload')"> 上传 </v-btn>
+    </liquid-glass-pill>
+    <liquid-glass-pill>
+      <v-btn class="act act-sync" prepend-icon="mdi-check-circle-outline" @click="$emit('show-sync-message')">
+        同步完成
+      </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showFullscreenButton"
-      :prepend-icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
-      class="act act-full"
-      @click="$emit('toggle-fullscreen')"
-    >
-      {{ isFullscreen ? '退出全屏' : '全屏' }}
-    </v-btn>
+    <liquid-glass-pill v-if="showFullscreenButton">
+      <v-btn
+        :prepend-icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
+        class="act act-full"
+        @click="$emit('toggle-fullscreen')"
+      >
+        {{ isFullscreen ? '退出全屏' : '全屏' }}
+      </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showRandomPickerButton"
-      append-icon="mdi-dice-multiple"
-      class="act act-random"
-      prepend-icon="mdi-account-question"
-      @click="$emit('open-random-picker')"
-    >
-      随机点名
-    </v-btn>
+    <liquid-glass-pill v-if="showRandomPickerButton">
+      <v-btn
+        append-icon="mdi-dice-multiple"
+        class="act act-random"
+        prepend-icon="mdi-account-question"
+        @click="$emit('open-random-picker')"
+      >
+        随机点名
+      </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showExamScheduleButton"
-      class="act act-exam"
-      prepend-icon="mdi-calendar-check"
-      @click="$emit('open-exam-picker')"
-    >
-      考试看板
-    </v-btn>
+    <liquid-glass-pill v-if="showExamScheduleButton">
+      <v-btn class="act act-exam" prepend-icon="mdi-calendar-check" @click="$emit('open-exam-picker')">
+        考试看板
+      </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showListCardButton"
-      class="act act-list"
-      prepend-icon="mdi-list-box"
-      @click="$emit('open-list')"
-    >
-      列表
-    </v-btn>
+    <liquid-glass-pill v-if="showListCardButton">
+      <v-btn class="act act-list" prepend-icon="mdi-list-box" @click="$emit('open-list')"> 列表 </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showTransferButton"
-      class="act act-transfer"
-      prepend-icon="mdi-swap-vertical-bold"
-      @click="$emit('open-transfer')"
-    >
-      导入导出
-    </v-btn>
+    <liquid-glass-pill v-if="showTransferButton">
+      <v-btn class="act act-transfer" prepend-icon="mdi-swap-vertical-bold" @click="$emit('open-transfer')">
+        导入导出
+      </v-btn>
+    </liquid-glass-pill>
 
-    <v-btn
-      v-if="showTestCardButton"
-      class="act act-test"
-      prepend-icon="mdi-test-tube"
-      @click="$emit('add-test-card')"
-    >
-      添加测试卡片
-    </v-btn>
+    <liquid-glass-pill v-if="showTestCardButton">
+      <v-btn class="act act-test" prepend-icon="mdi-test-tube" @click="$emit('add-test-card')">
+        添加测试卡片
+      </v-btn>
+    </liquid-glass-pill>
   </div>
 
 </template>
 
 <script setup lang="ts">
+import LiquidGlassPill from '@/components/ui/LiquidGlassPill.vue'
+
 withDefaults(
   defineProps<{
     synced?: boolean

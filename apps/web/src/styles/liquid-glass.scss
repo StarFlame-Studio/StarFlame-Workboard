@@ -1,0 +1,178 @@
+/* ============================================================
+   液态玻璃主题 · 全局规则（宿主皮肤）
+
+   材质：vue-bits 的 GlassSurface（components/ui/GlassSurface.vue）分两半：
+     · 折射 —— <LiquidGlass> 铺在卡片里当背景层，负责 backdrop-filter: url(#…) 的位移，
+       让背后的画面沿圆角被真正弯折；
+     · 皮肤 —— 这份 CSS 负责霜层 / 135° 高光 / 玻璃厚度 / 外投影。
+
+   为什么皮肤留在宿主上而不是让组件全包：霜层是纯色、高光是线性渐变，
+   两者都对「平移」不敏感 —— 压在折射层下面被滤一遍和不滤完全一样，
+   于是可以省掉一层 DOM，也不会让组件自带皮肤盖掉这里调好的暖色参数。
+
+   胶囊按钮（底栏功能按钮 / 空科目按钮 / 空科目 chip）没有折射层：
+   GlassSurface 需要一块显式尺寸的宿主，而 v-btn / v-chip 是 inline-flex
+   靠内容撑宽度的，塞进去会改尺寸。它们的材质等价于组件的 --fallback 分支。
+
+   开关：lib/cardTheme.ts 往 <html> 挂 .ct-liquid（卡片主题 = 液态玻璃时）。
+   放在 main.scss 最后 @use，用来盖掉 base.css 里 .v-card / .v-btn 的底色与阴影。
+
+   权重说明见 glass.scss —— base.css 里 .v-card 的阴影规则带 !important 且是 (0,4,0)，
+   所以每个 v-card 宿主都要再叠一个 .v-card（或再叠一次自身类名）把权重抬上去。
+   ============================================================ */
+
+@use 'liquid-glass-mixins' as lg;
+
+html.ct-liquid {
+  /* ---- 亮色：冷白玻璃 ---- */
+  --lg-frost: rgba(255, 255, 255, 0.36);
+  --lg-pill-frost: rgba(255, 255, 255, 0.42);
+  --lg-rim: rgba(255, 255, 255, 0.72);
+
+  /* 135° 斜向反光：左上偏亮、右下带一点回光，与组件的 .glass-surface__sheen 同形 */
+  --lg-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.46) 0%,
+    rgba(255, 255, 255, 0.08) 36%,
+    rgba(255, 255, 255, 0.01) 62%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+  --lg-pill-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.07) 45%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+
+  /* inset 前两条对应组件 .glass-surface--svg 的「玻璃厚度」，第三条是顶部高光；
+     外面三条是组件那套 0/4/16 → 0/8/24 → 0/16/56 的柔和投影 */
+  --lg-shadow:
+    inset 0 0 2px 1px rgba(28, 25, 23, 0.08),
+    inset 0 0 10px 2px rgba(28, 25, 23, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 4px 16px rgba(17, 17, 26, 0.05),
+    0 8px 24px rgba(17, 17, 26, 0.05),
+    0 16px 56px rgba(17, 17, 26, 0.05);
+  --lg-pill-shadow:
+    inset 0 0 1px 1px rgba(28, 25, 23, 0.1),
+    inset 0 0 6px 2px rgba(28, 25, 23, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 3px 10px rgba(17, 17, 26, 0.06),
+    0 6px 18px rgba(17, 17, 26, 0.05);
+}
+
+/* ---- 深色：暖黑玻璃，描边转为亮色 ----
+   v-theme--dark 可能挂在 <html> 本身，也可能挂在 .v-application 上，两种都覆盖 */
+html.ct-liquid:is(.v-theme--dark, :has(.v-theme--dark)) {
+  --lg-frost: rgba(20, 17, 14, 0.3);
+  --lg-pill-frost: rgba(34, 28, 23, 0.46);
+  --lg-rim: rgba(255, 255, 255, 0.26);
+
+  --lg-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.03) 36%,
+    rgba(255, 255, 255, 0) 62%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  --lg-pill-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.02) 45%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+
+  --lg-shadow:
+    inset 0 0 2px 1px rgba(255, 255, 255, 0.28),
+    inset 0 0 10px 4px rgba(255, 255, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.22),
+    0 16px 56px rgba(0, 0, 0, 0.18);
+  --lg-pill-shadow:
+    inset 0 0 1px 1px rgba(255, 255, 255, 0.24),
+    inset 0 0 6px 2px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 3px 10px rgba(0, 0, 0, 0.24),
+    0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- 卡片：作业卡 / 出勤卡 / 空科目卡 / 时间卡 / 一言卡 / 考试卡 / 作业墙 ----------
+   .wall-card、.wall-att 是 BoardPage 里的普通元素（没有 .v-card 类），
+   但那边写了 `.wall-card { background/box-shadow }` 这类 (0,3,0) 的规则，
+   所以这两个也要叠一次自身类名把权重抬到 (0,4,1)。 */
+$lg-cards:
+  '.grid-item > .v-card.v-card',
+  '.empty-subject-card.v-card.v-card',
+  '.time-card.v-card.v-card',
+  '.hitokoto-card.v-card.v-card',
+  '.concise-exam-card.v-card.v-card',
+  '.pwa-install-card.v-card.v-card',
+  '.wall-rail-time.v-card.v-card',
+  '.wall-rail-hitokoto.v-card.v-card',
+  '.wall-rail-exam.v-card.v-card',
+  '.wall-card.wall-card',
+  '.wall-att.wall-att';
+
+/* ---------- 胶囊：底栏功能按钮 / 空科目按钮 / 空科目 chip / 自定义卡片 chip ----------
+   HomeActions.vue 与 HomeworkGrid.vue 都是 scoped 样式，
+   其中带 !important 的底色/阴影规则加上 [data-v-xxx] 后能到 (0,4,0)，
+   这里再叠一个同类名把权重抬到 (0,5,1)。 */
+$lg-pills:
+  '.home-actions .act.act',
+  '.empty-buttons .empty-btn.empty-btn',
+  '.empty-subjects .v-chip.v-chip',
+  '.wall-foot .v-chip.v-chip';
+
+@each $card in $lg-cards {
+  html.ct-liquid #{$card} {
+    @include lg.surface;
+  }
+}
+
+@each $pill in $lg-pills {
+  html.ct-liquid #{$pill} {
+    @include lg.pill;
+  }
+}
+
+/* 卡片正文要压在折射层（.lg-layer，z-index: 0）之上；
+   折射层自己是 .lg-layer，排除掉。 */
+@each $card in $lg-cards {
+  html.ct-liquid #{$card} > *:not(.lg-layer) {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+/* Vuetify 的 tonal/flat 变体会把颜色画在子元素 underlay 上，那层会盖住玻璃，
+   这里一并透明掉。 */
+html.ct-liquid .home-actions .act .v-btn__underlay,
+html.ct-liquid .empty-buttons .empty-btn .v-btn__underlay,
+html.ct-liquid .empty-subjects .v-chip .v-chip__underlay,
+html.ct-liquid .wall-foot .v-chip .v-chip__underlay {
+  background: transparent !important;
+  opacity: 0 !important;
+}
+
+/* ---------- 悬停：保住玻璃外观，不加额外投影 ----------
+   index.scss / HomeworkGrid / HomeActions / ConciseExamCard / BoardPage 里给了这些元素
+   带 !important 的 hover 投影，会把玻璃的厚度顶掉；这里用同一份值覆盖回去。 */
+@each $card in $lg-cards {
+  html.ct-liquid #{$card}:hover {
+    box-shadow: var(--lg-shadow) !important;
+  }
+}
+
+@each $pill in $lg-pills {
+  html.ct-liquid #{$pill}:hover {
+    box-shadow: var(--lg-pill-shadow) !important;
+  }
+}
+
+/* 关闭「卡片悬浮效果」时也保留玻璃本身：--lg-shadow 里那两条 inset 是玻璃的
+   厚度与高光，去掉就不是液态玻璃了（真正的悬浮上浮由 index.scss 的 transform 负责，
+   仍然会被那句 transform:none 关掉）。 */
+html.ct-liquid .grid-masonry.no-card-hover .grid-item > .v-card.v-card {
+  box-shadow: var(--lg-shadow) !important;
+}

@@ -1,5 +1,6 @@
 <template>
   <v-card border class="hitokoto-card glow-track" elevation="2" :loading="loading" height="100%" rounded="xl" @click="next">
+    <liquid-glass />
     <v-card-text class="pa-6 d-flex flex-column justify-center" style="height: 100%">
       <div class="font-weight-medium mb-4 serif-font" :style="contentStyle">{{ sentence.content }}</div>
       <div class="text-medium-emphasis serif-font" :style="authorStyle">
@@ -13,6 +14,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBoardStore } from '@/stores/board'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
 import { randomBuiltinSentence } from '@/lib/hitokotoBuiltin'
 import { pickHitokoto, readHitokotoConfig, type HitokotoSentence } from '@/lib/hitokotoSources'
 

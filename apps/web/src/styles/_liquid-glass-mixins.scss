@@ -1,0 +1,43 @@
+/* ============================================================
+   液态玻璃主题 · 共享混入
+
+   材质取自 vue-bits 的 GlassSurface（components/ui/GlassSurface.vue），分两层叠出来：
+     1) 折射层 —— <LiquidGlass> 把组件铺在卡片里当背景层，给 backdrop-filter 接上
+        url(#…) 位移滤镜，让背后的画面真的沿着圆角被弯折（Chromium 才支持）
+     2) 皮肤层（这里）—— 半透明霜层 + inset 双层描边（玻璃厚度）+ 135° 高光
+        + 三层外投影；参数与组件里的 .glass-surface--svg / .glass-surface__sheen 对齐
+
+   参数全是 CSS 变量，亮暗两套值在 styles/liquid-glass.scss 里给：
+     --lg-frost / --lg-sheen / --lg-rim / --lg-shadow        （卡片）
+     --lg-pill-frost / --lg-pill-sheen / --lg-pill-shadow    （胶囊按钮）
+
+   每个变量都带兜底：设置页的预览卡不在 html.ct-liquid 作用域里，也要能出效果。
+   ============================================================ */
+
+@mixin surface {
+  position: relative;
+
+  /* 盖掉 Vuetify / base.css 的底色与渐变，换成低不透明度的霜层 + 高光。
+     注意 background-image 必须一起换掉：Vuetify 的 .v-card 用 background 简写设过底色。
+
+     这里**不写 backdrop-filter**：折射由 <LiquidGlass>（GlassSurface 组件）那条背景层
+     负责，宿主只提供霜层/高光/厚度/外投影。霜层是纯色、高光是线性渐变，
+     两者对平移不敏感，压在那层下面被滤一遍也完全一样。 */
+  background-color: var(--lg-frost, rgba(255, 255, 255, 0.34)) !important;
+  background-image: var(--lg-sheen, none) !important;
+  border-color: var(--lg-rim, rgba(255, 255, 255, 0.72)) !important;
+  box-shadow: var(--lg-shadow, 0 8px 24px rgba(17, 17, 26, 0.06)) !important;
+}
+
+@mixin pill {
+  position: relative;
+
+  background-color: var(--lg-pill-frost, rgba(255, 255, 255, 0.42)) !important;
+  background-image: var(--lg-pill-sheen, none) !important;
+  /* 胶囊面积小，不额外加边框（会改尺寸），厚度全靠 inset 高光 */
+  box-shadow: var(--lg-pill-shadow, 0 4px 14px rgba(17, 17, 26, 0.08)) !important;
+
+  /* 和 surface 一样：不写 backdrop-filter，折射交给 <LiquidGlassPill> 里那层。
+     没被 <LiquidGlassPill> 包住的（例如作业墙的 chip）会自动退回毛玻璃，
+     由 liquid-glass.scss 里那条兜底规则提供。 */
+}

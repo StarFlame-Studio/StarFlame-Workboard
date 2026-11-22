@@ -210,6 +210,11 @@ const settingGroups = [
       'background.opacity',
     ],
   },
+  {
+    key: 'cardTheme',
+    label: '卡片主题',
+    keys: ['theme.card'],
+  },
 ]
 
 function isGroupSelected(groupKey: string): boolean {

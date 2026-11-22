@@ -96,6 +96,7 @@ const KEY_LABELS: Record<string, string> = {
   'timeCard.enabled': '时间卡片',
   'hitokoto.enabled': '一言卡片',
   'background.enabled': '背景图',
+  'theme.card': '卡片主题',
   'randomPicker.enabled': '随机点名',
   examCardIds: '考试卡片',
   'schedule.weekly': '作息时间',

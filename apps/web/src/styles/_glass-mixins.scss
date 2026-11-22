@@ -1,0 +1,28 @@
+/* ============================================================
+   玻璃主题 · 共享混入
+
+   材质：**毛玻璃**（与底部浮动工具栏 / 右上角侧边按钮同一套配方）
+     · 半透明底色（低不透明度）
+     · backdrop-filter: blur() + saturate(150%) —— 透出并模糊背后画面
+     · 1px 细描边
+     · 一层柔和外投影
+
+   参数都由 CSS 变量控制，亮暗两套值在 styles/glass.scss 里给：
+     --glass-bg / --glass-border / --glass-blur / --glass-saturate / --glass-shadow
+   ============================================================ */
+
+@mixin glass {
+  position: relative;
+
+  /* 盖掉 Vuetify 自带的底色与渐变，换成半透明底。
+     每个变量都带兜底：设置页的预览卡不在 html.ct-glass 作用域里，也要能出效果。 */
+  border: 1px solid var(--glass-border, rgba(28, 25, 23, 0.1)) !important;
+  background-color: var(--glass-bg, rgba(255, 255, 255, 0.52)) !important;
+  background-image: none !important;
+
+  /* 毛玻璃本体：模糊 + 提饱和，和 .floating-toolbar 一致 */
+  -webkit-backdrop-filter: blur(var(--glass-blur, 18px)) saturate(var(--glass-saturate, 150%));
+  backdrop-filter: blur(var(--glass-blur, 18px)) saturate(var(--glass-saturate, 150%));
+
+  box-shadow: var(--glass-shadow, 0 10px 26px rgba(28, 25, 23, 0.12)) !important;
+}

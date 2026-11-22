@@ -1,5 +1,6 @@
 <template>
   <v-card border class="time-card glow-track" elevation="2" rounded="xl" style="cursor: pointer" @click="showFullscreen = true">
+    <liquid-glass />
     <v-card-text class="card-body d-flex align-center">
       <!-- 左侧：时间 -->
       <div class="time-left">
@@ -67,6 +68,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TimeCardFullscreen from '@/components/TimeCardFullscreen.vue'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
 import { serverNow, startTimeSync } from '@/lib/serverTime'
 import { describeBellOffset, type BellOffsetConfig } from '@/lib/bellOffset'
 import {
