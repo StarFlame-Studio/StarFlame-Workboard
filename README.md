@@ -3,7 +3,7 @@
 面向中小学课堂的作业看板系统：教室一体机 / 老师设备 / 学生设备通过「班级码 + 授权码」接入，实时同步作业、考试、模板与课程时间段。
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-orange.svg)](./LICENSE)
-![Version](https://img.shields.io/badge/version-1.1.7-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-green)
 
 - GitHub：<https://github.com/StarFlame-Studio/StarFlame-Workboard>
@@ -97,6 +97,8 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 ## 版本号
 
 版本号单点维护在 `packages/shared/src/constants.ts` 的 `APP_VERSION` / `APP_VERSION_CODE`，同时需同步 `apps/desktop/package.json` 与 `apps/web/src/lib/changelog.ts` 的更新日志。
+
+数字版本号（`APP_VERSION_CODE`）自 v1.2.0 起改为固定四位数，每个版本递增 1：v1.2.0 = 1010、v1.2.1 = 1011、v1.2.2 = 1012 ……发版时把上一版的值 +1 即可，不再按「主版本 × 100 + 次版本 × 10 + 修订号」计算。
 
 ## 下载
 

@@ -10,15 +10,22 @@
  *   作业看板（网页端 + 桌面端客户端）
  *   后台管理面板
  * 某个板块或某个分类没有条目时不会出现对应的标题。
+ *
+ * 条目默认按「重要程度」自动排序（重要的排前面）：可以写成纯字符串，由
+ * autoImportance() 按关键词与信息量估算权重；也可以写成 { text, weight } 显式指定，
+ * weight 越大越靠前（同权重时保持书写顺序）。
  */
 export type ChangelogCategory = 'added' | 'improved' | 'fixed'
 export type ChangelogAreaKey = 'board' | 'admin'
 
+/** 一条更新内容：纯文本，或带显式重要程度权重（越大越靠前）的对象 */
+export type ChangelogItem = string | { text: string; weight?: number }
+
 /** 单个板块下的条目，按 新增 / 优化 / 修复 归类 */
 export interface ChangelogArea {
-  added?: string[]
-  improved?: string[]
-  fixed?: string[]
+  added?: ChangelogItem[]
+  improved?: ChangelogItem[]
+  fixed?: ChangelogItem[]
 }
 
 export interface ChangelogEntry {
@@ -51,6 +58,37 @@ const CATEGORY_TITLE: Record<ChangelogCategory, string> = {
 }
 const CATEGORY_ORDER: ChangelogCategory[] = ['added', 'improved', 'fixed']
 
+/**
+ * 自动估算重要程度用的关键词规则：命中即累加权重，可命中多条。
+ * 正向：影响面大、用户能直接感知的改动；负向：文案、措辞之类的细枝末节。
+ */
+const IMPORTANCE_HINTS: Array<{ pattern: RegExp; weight: number }> = [
+  { pattern: /(新增|全新|首次支持|重构|重写|重做|大改版)/, weight: 40 },
+  { pattern: /(支持|可以|能够|自动|一键|默认)/, weight: 18 },
+  { pattern: /(大幅|明显|显著|更快|更省|更稳|不再|彻底|修复|解决)/, weight: 14 },
+  { pattern: /(优化|改进|提升|精简|简化|加速|减少)/, weight: 8 },
+  { pattern: /(移除|删除|下线|停止)/, weight: 4 },
+  { pattern: /(文案|文字|措辞|注释|命名|提示语|微调)/, weight: -30 },
+]
+
+/** 估算一条更新内容的重要程度（数值越大越重要） */
+export function autoImportance(text: string): number {
+  let score = 0
+  for (const hint of IMPORTANCE_HINTS) {
+    if (hint.pattern.test(text)) score += hint.weight
+  }
+  // 信息量越大的条目通常也越重要（长文本封顶 8 分，避免长文案压倒真正的重点）
+  score += Math.min(text.length / 40, 8)
+  return score
+}
+
+/** 把字符串 / 带权重的对象统一成 { text, weight } */
+function normalizeItem(item: ChangelogItem): { text: string; weight: number } {
+  if (typeof item === 'string') return { text: item, weight: autoImportance(item) }
+  const text = typeof item?.text === 'string' ? item.text : ''
+  return { text, weight: typeof item?.weight === 'number' ? item.weight : autoImportance(text) }
+}
+
 /** 渲染用的一个分类（已过滤空分类） */
 export interface ChangelogGroupView {
   key: ChangelogCategory
@@ -68,10 +106,13 @@ export interface ChangelogAreaView {
 /**
  * 尚未发布的版本条目：真正打包发布时，把条目从这里移到 CHANGELOG 顶部。
  * 目的：网页端不要在桌面端安装包上传完成前就提前展示新版本号与更新内容。
+ * 当前没有待发布的版本。下次发版时在这里加新条目，打包上传安装包后再整体移到 CHANGELOG 顶部。
  */
-export const PENDING_CHANGELOG: ChangelogEntry[] = [
+export const PENDING_CHANGELOG: ChangelogEntry[] = []
+
+export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.1.8',
+    version: '1.2.0',
     date: '2026-11-21',
     summary: '新增进阶教程、卡片主题默认改为毛玻璃，背景图支持更大的图片',
     desktop: true,
@@ -81,6 +122,9 @@ export const PENDING_CHANGELOG: ChangelogEntry[] = [
         '新增引导式使用教程：首次进入作业板时可选择「开始引导」，跟着高亮提示亲手完成点开科目（卡片或按钮，取决于设置里的显示方式）、写作业并保存（输入框和下面的粘贴、常用短语按钮会一起框出来）、放大字号、切换日期，做完一步自动进入下一步；设置页「使用教程」里可以随时重看',
         '新增进阶教程（考试看板 / 随机点名 / 发送通知）：基础教程结束后会询问是否继续，也可以在设置页单独打开；每段都是独立的一小段引导，考试看板会临时生成一场模拟考试、随机点名在没有花名册时会临时建一份演示名单，教程结束自动清理，不留痕迹',
         '新增「毛玻璃」为默认卡片主题：新装或未改过主题的设备打开看板就是半透明磨砂质感，仍可在「设置 → 主题」里切回默认或液态玻璃',
+        '首页新增使用教程卡片：作业板下方直接给出「基础教程」「进阶教程」入口，还能一键查看「教师端登录」；卡片可以关闭，关闭后可在设置页重新打开',
+        '首页新增「卡片主题」介绍卡片：功能按钮下方就能看到默认、毛玻璃、液态玻璃三种材质的预览和当前使用中的一种，点任意材质或「去设置里换主题」直接跳到设置页的主题分页；首页卡片顺序固定为卡片主题 → 使用教程 → 安装应用与授权（网页端）',
+        '新增教师端登录引导：在一体机上点「教师端登录」，自动显示本班的班级码和教师授权码（没有教师授权码会自动创建一条），并给出可直接打开的预配链接和图文说明，老师用手机或办公室电脑就能登录布置作业',
       ],
       improved: [
         '移除设置页的「开发者选项」：设置页只保留日常会用到的功能，界面更清爽',
@@ -89,17 +133,13 @@ export const PENDING_CHANGELOG: ChangelogEntry[] = [
         '液态玻璃明显更省性能：折射层的滤镜链从 8 个节点精简到 2 个，胶囊按钮改用普通毛玻璃，屏幕外的卡片不再提前渲染折射层，滚动时临时停用折射、停下立即恢复 —— 大屏看板滚动时不再一顿一顿',
         '卡片主题与液态玻璃参数改为本机设置：每台设备各自保留自己的外观，切换设备不会被别的设备覆盖，也不再随班级设置同步到云端',
         '上传背景图的上限从 3MB 提升到 5MB（超过 2MB 时会提示大图可能让大屏加载变慢，仍可继续上传）',
+        '背景图也改为本机设置：壁纸、模糊与遮罩只在当前设备生效，不再同步到其他大屏；本地上传的大图改存到浏览器 IndexedDB，5MB 的壁纸刷新后也不会丢',
+        '预配链接大幅缩短并固定自动登录：链接形如 /bind?c=班级码&k=授权码，不再携带冗长的设置快照，好记也好转发；旧链接仍然可用',
+        '移除设置页的「作业导入导出」分类：作业导入导出仍可从首页「导入导出」按钮直接打开，设置页更精简',
+        '设置页的「首页」与「关于」页尾新增「系统状态」入口：一键查看服务可用性、接口与更新服务的实时状态',
+        '通知、考试安排、教程与「安装应用与授权」卡片也支持玻璃和液态玻璃：这四类卡片会跟随卡片主题换成半透明磨砂或液态玻璃质感，通知卡还保留普通 / 加急的底色区分',
       ],
     },
-  },
-]
-
-export const CHANGELOG: ChangelogEntry[] = [
-  {
-    version: '1.1.7',
-    date: '2026-11-20',
-    summary: '优化了使用体验',
-    desktop: true,
   },
   {
     version: '1.1.6',
@@ -292,7 +332,12 @@ export function changelogAreas(entry: ChangelogEntry | null | undefined): Change
     if (!area) continue
     const groups: ChangelogGroupView[] = []
     for (const category of CATEGORY_ORDER) {
-      const items = (area[category] ?? []).filter((item) => Boolean(item && item.trim()))
+      // 先按重要程度降序，同权重保持书写顺序（index 兜底，保证渲染稳定）
+      const items = (area[category] ?? [])
+        .map((item, index) => ({ ...normalizeItem(item), index }))
+        .filter((row) => Boolean(row.text && row.text.trim()))
+        .sort((a, b) => b.weight - a.weight || a.index - b.index)
+        .map((row) => row.text)
       if (items.length === 0) continue
       groups.push({ key: category, title: CATEGORY_TITLE[category], items })
     }

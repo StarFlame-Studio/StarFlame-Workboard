@@ -1,21 +1,23 @@
 /**
- * 预配链接（设置页「预配链接」标签生成）解析。
+ * 预配链接（设置页「预配链接」标签 / 教程里的教师端登录引导生成）解析。
  *
- * 链接形如：
- *   /bind?classCode=xxx&accessCode=yyy&deviceName=大屏A&autoAuth=1&settings=%7B...%7D
+ * 短链接形如：
+ *   /bind?c=班级码&k=授权码
  *
- * - classCode 必填，没有班级码就没法登录；
- * - accessCode 留空 = 游客只读登录（是否允许由班级设置 access.guestEnabled 决定）；
- * - autoAuth=0 时才需要用户手动点登录，默认打开链接就自动登录；
- * - settings 是班级设置快照，登录成功且设备有写权限时写回云端。
+ * - c（班级码）必填，没有班级码就没法登录；
+ * - k（授权码）留空 = 游客只读登录（是否允许由班级设置 access.guestEnabled 决定）；
+ * - 打开链接固定自动登录，不再需要 autoAuth 参数。
+ *
+ * 同时兼容早期长链接（classCode / accessCode / deviceName / autoAuth / settings），
+ * 老链接发出去以后还会被继续点开，不能解析失败。
  */
 export interface ProvisionLink {
   classCode: string
   accessCode: string
   deviceName: string
-  /** 打开链接是否立刻自动登录（autoAuth=0 / false 时关闭） */
+  /** 打开链接是否立刻自动登录（短链接恒为 true；旧链接可用 autoAuth=0 / false 关闭） */
   autoLogin: boolean
-  /** 预配置的班级设置快照 */
+  /** 预配置的班级设置快照（仅旧链接可能携带，新链接不再生成） */
   settings: Record<string, unknown>
   /** 是否为预配链接（带班级码） */
   isProvision: boolean
@@ -47,8 +49,9 @@ function parseSettings(raw: string | null): Record<string, unknown> {
 
 export function parseProvisionLink(search: string): ProvisionLink {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  const classCode = (params.get('classCode') ?? '').trim()
-  const accessCode = (params.get('accessCode') ?? '').trim()
+  // 新短参数优先，老参数兜底
+  const classCode = (params.get('c') ?? params.get('classCode') ?? '').trim()
+  const accessCode = (params.get('k') ?? params.get('accessCode') ?? '').trim()
   const deviceName = (params.get('deviceName') ?? '').trim()
   const autoFlag = (params.get('autoAuth') ?? '').trim().toLowerCase()
   const autoLogin = autoFlag !== '0' && autoFlag !== 'false'

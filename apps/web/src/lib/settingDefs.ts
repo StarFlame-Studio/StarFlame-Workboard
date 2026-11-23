@@ -160,9 +160,13 @@ export const SETTING_DEFS: SettingDef[] = [
     ] },
 ]
 
-// 液态玻璃参数跟随卡片主题一起本机化：不同设备屏幕/显卡不同，同一套数值同步过去只会互相覆盖
+// 主题相关的参数一律本机化：不同设备屏幕/亮度/显卡不同，同一套数值同步过去只会互相覆盖
+// - theme.card / liquid.*：卡片材质与液态玻璃参数
+// - background.*：壁纸、模糊与遮罩（同一张 5MB 壁纸同步给所有设备既占带宽也拖慢首屏）
 for (const def of SETTING_DEFS) {
-  if (def.key === 'theme.card' || def.key.startsWith('liquid.')) def.local = true
+  if (def.key === 'theme.card' || def.key.startsWith('liquid.') || def.key.startsWith('background.')) {
+    def.local = true
+  }
 }
 
 export const SETTING_MAP: Record<string, SettingDef> = Object.fromEntries(

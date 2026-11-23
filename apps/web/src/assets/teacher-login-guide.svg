@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" fill="none">
+  <rect width="640" height="360" rx="18" fill="#16130F"/>
+  <rect x="24" y="24" width="268" height="180" rx="12" fill="#221D18" stroke="#3A322B"/>
+  <rect x="40" y="40" width="236" height="132" rx="8" fill="#2B2520"/>
+  <rect x="56" y="56" width="120" height="10" rx="5" fill="#4B4238"/>
+  <rect x="56" y="76" width="200" height="8" rx="4" fill="#3A322B"/>
+  <rect x="56" y="92" width="176" height="8" rx="4" fill="#3A322B"/>
+  <rect x="56" y="108" width="196" height="8" rx="4" fill="#3A322B"/>
+  <rect x="56" y="132" width="92" height="26" rx="13" fill="#E2683C"/>
+  <text x="102" y="150" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#16130F" text-anchor="middle">一体机</text>
+  <rect x="40" y="188" width="236" height="4" rx="2" fill="#3A322B"/>
+  <text x="158" y="224" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#B8AFA6" text-anchor="middle">① 教室一体机打开看板</text>
+
+  <path d="M304 114 L344 114" stroke="#E2683C" stroke-width="2" stroke-dasharray="6 6"/>
+  <path d="M338 108 L346 114 L338 120" stroke="#E2683C" stroke-width="2" fill="none"/>
+
+  <rect x="356" y="24" width="260" height="180" rx="12" fill="#221D18" stroke="#3A322B"/>
+  <rect x="372" y="40" width="228" height="148" rx="8" fill="#2B2520"/>
+  <text x="392" y="70" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="600" fill="#F7F6F4">教程卡片 · 教师端登录</text>
+  <rect x="392" y="86" width="192" height="30" rx="8" fill="#1E1A16" stroke="#4B4238"/>
+  <text x="404" y="106" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#B8AFA6">班级码：ABC123</text>
+  <rect x="392" y="124" width="192" height="30" rx="8" fill="#1E1A16" stroke="#4B4238"/>
+  <text x="404" y="144" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#B8AFA6">教师授权码：K7Q2M9X4PD</text>
+  <rect x="392" y="162" width="110" height="20" rx="10" fill="#E2683C"/>
+  <text x="447" y="176" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" font-weight="600" fill="#16130F" text-anchor="middle">复制预配链接</text>
+  <text x="486" y="238" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" fill="#B8AFA6" text-anchor="middle">② 一体机上取到班级码与教师授权码</text>
+
+  <path d="M486 256 L486 282" stroke="#E2683C" stroke-width="2" stroke-dasharray="6 6"/>
+  <path d="M480 276 L486 284 L492 276" stroke="#E2683C" stroke-width="2" fill="none"/>
+
+  <rect x="330" y="290" width="284" height="46" rx="12" fill="#221D18" stroke="#3A322B"/>
+  <text x="472" y="310" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#F7F6F4" text-anchor="middle">③ 手机 / 电脑打开链接，自动登录教师端</text>
+  <text x="472" y="327" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#8F857B" text-anchor="middle">链接形如 /bind?c=班级码&amp;k=教师授权码</text>
+</svg>

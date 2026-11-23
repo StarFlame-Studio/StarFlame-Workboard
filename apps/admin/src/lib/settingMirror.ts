@@ -121,12 +121,8 @@ export const SETTING_GROUPS: MirrorGroup[] = [
     title: '主题',
     icon: 'mdi-image-outline',
     fields: [
-      // 卡片主题与液态玻璃参数已改为本机设置（每台设备各自生效），不再由班级设置下发
-      bool('background.enabled', '启用自定义背景', false, '使用图片作为大屏背景'),
-      text('background.url', '背景图地址', '', '必须是 https 图片地址'),
-      text('background.imageData', '本地背景图', '', '本地上传的图片（data URL），一般在大屏设置里上传'),
-      num('background.blur', '模糊程度', 10, 0, 40, 1, '单位：px'),
-      num('background.opacity', '遮罩不透明度', 30, 0, 90, 5, '单位：%'),
+      // 卡片主题、液态玻璃参数与背景图都已改为本机设置（每台设备各自生效），不再由班级设置下发。
+      // 后台不再提供这些字段，避免管理员改了一个「看起来生效、实际被本机值覆盖」的开关。
     ],
   },
   {

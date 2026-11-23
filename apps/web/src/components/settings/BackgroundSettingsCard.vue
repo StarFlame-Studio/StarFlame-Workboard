@@ -141,9 +141,11 @@
 
         <v-divider class="my-5" />
 
+        <div class="text-caption text-medium-emphasis mb-3">
+          背景图是本机设置：只保存在当前这台设备上，不同步云端。改动即时生效。
+        </div>
         <div class="d-flex justify-end" style="gap: 12px">
           <v-btn prepend-icon="mdi-restore" variant="text" @click="resetAll">重置</v-btn>
-          <v-btn color="primary" prepend-icon="mdi-content-save" variant="elevated" @click="$emit('save')">保存设置</v-btn>
         </div>
       </div>
     </v-card-text>
@@ -156,7 +158,6 @@ import { computed, ref } from 'vue'
 const props = defineProps<{ model: Record<string, unknown> }>()
 const emit = defineEmits<{
   update: [key: string, value: unknown]
-  save: []
 }>()
 
 const imageSource = ref<'url' | 'upload'>('url')

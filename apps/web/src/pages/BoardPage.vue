@@ -208,10 +208,12 @@
               v-for="notification in wallNotices"
               :key="notification.id"
               class="wall-notice"
+              :class="{ 'notice-urgent': notification.level === 'urgent' }"
               :color="notification.level === 'urgent' ? 'error' : 'primary'"
               variant="tonal"
               @click="openNotice(notification)"
             >
+              <liquid-glass />
               <v-card-text class="d-flex align-center py-1">
                 <v-icon class="mr-2" size="small">
                   {{ notification.level === 'urgent' ? 'mdi-alert' : 'mdi-bullhorn-outline' }}
@@ -275,6 +277,15 @@
         @toggle-fullscreen="toggleFullscreen"
       />
 
+      <theme-intro-card class="mt-4" @open-settings="openThemeSettings" />
+
+      <tutorial-card
+        class="mt-4"
+        @advanced="openAdvancedChooser"
+        @basic="startTutorial"
+        @teacher-login="teacherLoginOpen = true"
+      />
+
       <pwa-install-card v-if="!isDesktop && !hidePwaCardSetting" />
     </v-container>
   </template>
@@ -286,11 +297,13 @@
         <v-card
           v-for="notification in wallNotices"
           :key="notification.id"
+          :class="{ 'notice-urgent': notification.level === 'urgent' }"
           :color="notification.level === 'urgent' ? 'error' : 'primary'"
           class="notice-card cursor-pointer"
           variant="tonal"
           @click="openNotice(notification)"
         >
+          <liquid-glass />
           <v-card-text class="d-flex align-center py-3 notice-card-body">
             <v-icon class="mr-2" size="small">
               {{ notification.level === 'urgent' ? 'mdi-alert' : 'mdi-bullhorn-outline' }}
@@ -341,6 +354,15 @@
         @open-random-picker="openRandomPicker"
         @open-transfer="openTransfer"
         @toggle-fullscreen="toggleFullscreen"
+      />
+
+      <theme-intro-card class="mt-4" @open-settings="openThemeSettings" />
+
+      <tutorial-card
+        class="mt-4"
+        @advanced="openAdvancedChooser"
+        @basic="startTutorial"
+        @teacher-login="teacherLoginOpen = true"
       />
 
       <pwa-install-card v-if="!isDesktop && !hidePwaCardSetting" />
@@ -423,6 +445,7 @@
     @start="openAdvancedChooser"
   />
   <advanced-tutorial-dialog v-model="advancedChooserOpen" @start="startAdvancedTutorial" />
+  <teacher-login-dialog v-model="teacherLoginOpen" />
   <tutorial-overlay ref="tutorialRef" v-model="tutorialOpen" :steps="activeTutorialSteps" @finish="onTutorialFinish" />
 
   <homework-transfer-dialog v-model="transferOpen" />
@@ -545,7 +568,7 @@ import { localSettings } from '@/lib/localSettings'
 import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
 import { startGlassScrollDegrade, stopGlassScrollDegrade } from '@/lib/glassScroll'
 
-import { navigate, type PageName } from '@/lib/nav'
+import { navigate, navigateWithQuery, type PageName } from '@/lib/nav'
 import { useSessionStore } from '@/stores/session'
 import { useBoardStore } from '@/stores/board'
 import HomeworkGrid from '@/components/home/HomeworkGrid.vue'
@@ -558,6 +581,7 @@ import HitokotoCard from '@/components/HitokotoCard.vue'
 import ConciseExamCard from '@/components/home/ConciseExamCard.vue'
 import type { GridItem } from '@/types/board'
 import HomeActions from '@/components/home/HomeActions.vue'
+import ThemeIntroCard from '@/components/home/ThemeIntroCard.vue'
 import AttendanceSidebar from '@/components/attendance/AttendanceSidebar.vue'
 import AttendanceManagementDialog from '@/components/attendance/AttendanceManagementDialog.vue'
 import HomeworkEditDialog from '@/components/HomeworkEditDialog.vue'
@@ -569,6 +593,8 @@ import TutorialPromptDialog from '@/components/tutorial/TutorialPromptDialog.vue
 import TutorialOverlay from '@/components/tutorial/TutorialOverlay.vue'
 import AdvancedTutorialDialog from '@/components/tutorial/AdvancedTutorialDialog.vue'
 import AdvancedTutorialPromptDialog from '@/components/tutorial/AdvancedTutorialPromptDialog.vue'
+import TutorialCard from '@/components/tutorial/TutorialCard.vue'
+import TeacherLoginDialog from '@/components/tutorial/TeacherLoginDialog.vue'
 import HomeworkTransferDialog from '@/components/home/HomeworkTransferDialog.vue'
 import NoticeReadDialog from '@/components/NoticeReadDialog.vue'
 import ExamBoardPicker from '@/components/ExamBoardPicker.vue'
@@ -608,6 +634,11 @@ const session = useSessionStore()
 function go(page: PageName): void {
   navigate(page)
 }
+
+/** 首页主题介绍卡片 → 设置页「主题」分页 */
+function openThemeSettings(): void {
+  navigateWithQuery('settings', { tab: 'theme' })
+}
 const board = useBoardStore()
 
 const editorOpen = ref(false)
@@ -625,6 +656,8 @@ const advancedId = ref<AdvancedTutorialId | null>(null)
 const advancedAskOpen = ref(false)
 /** 进阶教程选择弹窗 */
 const advancedChooserOpen = ref(false)
+/** 教程卡片里的「教师端登录」弹窗（只有一体机看得到这个入口） */
+const teacherLoginOpen = ref(false)
 /**
  * 进阶教程临时生成的演示数据。
  * 只放在内存里、不写接口：本地模式下写接口会进待同步队列，教程结束还得清队列太脆弱。
@@ -1070,8 +1103,8 @@ const weeklySchedule = computed<
 })
 
 // 背景设置（图片 + 模糊 + 遮罩）
-// 背景：新键 background.* 优先，旧键 bgEnabled/bgUrl/… 兜底
-const bg = computed(() => backgroundSetting(settings.value))
+// background.* 是本机设置：以 localSettings 为准，云端旧值只做兜底（换设备时还能看到原背景）
+const bg = computed(() => backgroundSetting({ ...settings.value, ...localSettings.value }))
 
 const bgImageStyle = computed(() => ({
   backgroundImage: 'url(' + bg.value.url + ')',

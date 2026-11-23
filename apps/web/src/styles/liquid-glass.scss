@@ -108,6 +108,10 @@ $lg-cards:
   '.hitokoto-card.v-card.v-card',
   '.concise-exam-card.v-card.v-card',
   '.pwa-install-card.v-card.v-card',
+  '.theme-intro-card.v-card.v-card',
+  '.tutorial-card.v-card.v-card',
+  '.notice-card.v-card.v-card',
+  '.wall-notice.v-card.v-card',
   '.wall-rail-time.v-card.v-card',
   '.wall-rail-hitokoto.v-card.v-card',
   '.wall-rail-exam.v-card.v-card',
@@ -153,6 +157,29 @@ html.ct-liquid .empty-subjects .v-chip .v-chip__underlay,
 html.ct-liquid .wall-foot .v-chip .v-chip__underlay {
   background: transparent !important;
   opacity: 0 !important;
+}
+
+/* ---------- 通知卡：在霜层 + 高光上再补一层很淡的主题色 ----------
+   保留原来 tonal 底的语义（普通=主线蓝、加急=红），透明度远低于原底色，
+   液态玻璃的 135° 高光仍然叠在下面。 */
+html.ct-liquid .notice-card.v-card.v-card,
+html.ct-liquid .wall-notice.v-card.v-card {
+  background-image:
+    linear-gradient(
+      rgba(var(--v-theme-primary, 47, 127, 209), 0.1),
+      rgba(var(--v-theme-primary, 47, 127, 209), 0.1)
+    ),
+    var(--lg-sheen, none) !important;
+}
+
+html.ct-liquid .notice-card.notice-urgent.v-card.v-card,
+html.ct-liquid .wall-notice.notice-urgent.v-card.v-card {
+  background-image:
+    linear-gradient(
+      rgba(var(--v-theme-error, 229, 72, 77), 0.16),
+      rgba(var(--v-theme-error, 229, 72, 77), 0.16)
+    ),
+    var(--lg-sheen, none) !important;
 }
 
 /* ---------- 悬停：保住玻璃外观，不加额外投影 ----------

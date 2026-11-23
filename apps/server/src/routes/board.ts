@@ -20,6 +20,7 @@ import {
 import { db } from '../db/index.js'
 import {
   attendanceRecords,
+  classAccessCodes,
   classes,
   customCards,
   devices,
@@ -35,7 +36,7 @@ import {
 } from '../db/schema.js'
 import { env } from '../env.js'
 import { badRequest, conflict, forbidden, notFound, ok, param } from '../lib/http.js'
-import { newId } from '../lib/ids.js'
+import { newAccessCode, newId } from '../lib/ids.js'
 import { writeAudit } from '../lib/audit.js'
 import { broadcastChange } from '../realtime/socket.js'
 import { clientIp, readLimiter, writeLimiter } from '../middleware/rateLimit.js'
@@ -1193,6 +1194,94 @@ router.post('/uploads/token', writeLimiter, requireWritable, validateBody(upload
       domain: env.qiniu.domain,
       url: 'https://' + env.qiniu.domain + '/' + key,
       expiresIn: 3600,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/**
+ * 教师端登录引导：给一体机返回本班的班级码 + 教师授权码（没有就自动建一条）。
+ *
+ * 为什么需要这个接口：设备登录后只能拿到自己的 accessCodeId，拿不到授权码明文，
+ * 而老师要在一体机上用手机/电脑登录时又必须知道班级码和教师授权码。
+ * 只允许一体机（terminal）调用，避免老师/学生设备互相拿到别人的授权码。
+ */
+router.get('/access-code', readLimiter, async (req, res, next) => {
+  try {
+    const classId = await resolveClassId(req)
+    if (req.device && req.device.role !== 'terminal') {
+      throw forbidden('只有一体机可以获取教师登录信息')
+    }
+
+    const classRows = await db
+      .select({ classCode: classes.classCode, classUid: classes.classUid, name: classes.name })
+      .from(classes)
+      .where(eq(classes.id, classId))
+      .limit(1)
+    const classRow = classRows[0]
+    if (!classRow) throw notFound('班级不存在')
+
+    const now = new Date()
+    const pickTeacherCode = async () => {
+      const rows = await db
+        .select()
+        .from(classAccessCodes)
+        .where(
+          and(
+            eq(classAccessCodes.classId, classId),
+            eq(classAccessCodes.role, 'teacher'),
+            eq(classAccessCodes.enabled, true),
+          ),
+        )
+        .orderBy(asc(classAccessCodes.createdAt))
+      return rows.find((row) => !row.expiresAt || row.expiresAt > now) ?? null
+    }
+
+    let codeRow = await pickTeacherCode()
+    let created = false
+    if (!codeRow) {
+      // 生成 10 位授权码；极小概率撞码时重试，仍然冲突就让数据库唯一索引兜底报错
+      for (let attempt = 0; attempt < 6 && !codeRow; attempt += 1) {
+        const code = newAccessCode()
+        try {
+          const id = newId()
+          await db.insert(classAccessCodes).values({
+            id,
+            classId,
+            code,
+            role: 'teacher',
+            permission: 'write',
+            label: '教师端 · 自动生成',
+            enabled: true,
+            createdBy: req.user?.id ?? null,
+          })
+          const rows = await db.select().from(classAccessCodes).where(eq(classAccessCodes.id, id)).limit(1)
+          codeRow = rows[0] ?? null
+          created = Boolean(codeRow)
+        } catch {
+          codeRow = await pickTeacherCode()
+        }
+      }
+      if (!codeRow) throw conflict('教师授权码生成失败，请稍后重试')
+      void writeAudit({
+        actorType: req.device ? 'device' : 'user',
+        actorId: req.device?.id ?? req.user?.id ?? null,
+        classId,
+        action: 'accessCode.create.auto',
+        target: codeRow.id,
+        ip: clientIp(req),
+      })
+    }
+
+    ok(res, {
+      classCode: classRow.classCode,
+      classUid: classRow.classUid,
+      className: classRow.name,
+      accessCode: codeRow.code,
+      accessCodeId: codeRow.id,
+      label: codeRow.label,
+      created,
     })
   } catch (error) {
     next(error)

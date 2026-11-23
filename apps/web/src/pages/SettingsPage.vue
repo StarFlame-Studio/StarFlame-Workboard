@@ -71,6 +71,7 @@
             <template #actions>
               <v-btn color="primary" prepend-icon="mdi-play-circle" variant="tonal" @click="replayTutorial">重新观看使用教程</v-btn>
               <v-btn class="ml-2" prepend-icon="mdi-school" variant="tonal" @click="replayAdvanced">进阶教程</v-btn>
+              <v-btn class="ml-2" prepend-icon="mdi-restore" variant="text" @click="restoreTutorialCard">显示首页教程卡片</v-btn>
             </template>
           </settings-card>
 
@@ -91,6 +92,7 @@
           <attribution-card />
           <open-source-card />
           <about-card />
+          <status-footer />
         </template>
 
         <!-- 服务器 -->
@@ -190,7 +192,7 @@
           <card-theme-card :model="settings" @update="onSettingUpdate" />
         </template>
 
-        <!-- 备份迁移 / 作业导入导出 -->
+        <!-- 备份迁移 -->
         <template v-else-if="activeTab === 'transfer'">
           <transfer-card />
         </template>
@@ -200,6 +202,7 @@
           <attribution-card />
           <open-source-card />
           <about-card />
+          <status-footer />
         </template>
         </template>
       </v-container>
@@ -223,8 +226,8 @@ import { applyTheme, currentTheme, type ThemeMode } from '@/lib/theme'
 import SettingsCard from '@/components/settings/SettingsCard.vue'
 import SettingItem from '@/components/settings/SettingItem.vue'
 import AboutCard from '@/components/settings/AboutCard.vue'
+import StatusFooter from '@/components/settings/StatusFooter.vue'
 import TransferCard from '@/components/settings/TransferCard.vue'
-import HomeworkTransferCard from '@/components/settings/HomeworkTransferCard.vue'
 import OpenSourceCard from '@/components/settings/OpenSourceCard.vue'
 import AttributionCard from '@/components/settings/AttributionCard.vue'
 import DesktopAppCard from '@/components/settings/DesktopAppCard.vue'
@@ -260,6 +263,16 @@ function replayTutorial(): void {
 function replayAdvanced(): void {
   requestAdvancedTutorialMenu()
   void go('board')
+}
+
+/** 首页教程卡片被关掉后，在这里可以重新显示 */
+function restoreTutorialCard(): void {
+  try {
+    localStorage.removeItem('sf.tutorialCardDismissed')
+  } catch {
+    // 隐私模式下忽略
+  }
+  notify('已重新显示首页教程卡片')
 }
 
 async function go(page: PageName): Promise<void> {
@@ -299,7 +312,6 @@ const tabs = [
   { title: '随机点名', icon: 'mdi-dice-multiple', value: 'randomPicker' },
   { title: '主题', icon: 'mdi-image', value: 'theme' },
   { title: '备份迁移', icon: 'mdi-cloud-sync-outline', value: 'transfer' },
-  { title: '作业导入导出', icon: 'mdi-swap-vertical-bold', value: 'homeworkTransfer' },
   { title: '关于', icon: 'mdi-information', value: 'about' },
 ]
 

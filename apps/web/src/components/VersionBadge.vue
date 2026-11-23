@@ -8,7 +8,7 @@
     <v-card class="version-card">
       <v-card-item>
         <template #prepend>
-          <div class="version-mark">焰</div>
+          <img alt="星焰作业板" class="version-mark" :src="logoUrl" />
         </template>
         <v-card-title class="text-h6">版本信息</v-card-title>
         <v-card-subtitle>星焰作业板 · 焰火工作室</v-card-subtitle>
@@ -117,6 +117,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
 import ChangelogBody from '@/components/ChangelogBody.vue'
+import logoUrl from '@/assets/logo.svg'
 import { CHANGELOG, compareVersion, findChangelog, type ChangelogEntry } from '@/lib/changelog'
 import {
   appInfo,
@@ -270,17 +271,12 @@ async function doRollback(version: string): Promise<void> {
 }
 
 .version-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
+  display: block;
+  width: 40px;
+  height: 40px;
   margin-right: 12px;
-  border-radius: 12px;
-  background: var(--grad-brand, linear-gradient(100deg, #ff8a1f, #f4511e));
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(244, 81, 30, 0.35));
 }
 
 .version-body {

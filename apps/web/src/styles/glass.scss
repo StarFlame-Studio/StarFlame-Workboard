@@ -48,6 +48,13 @@ html.ct-glass .grid-item > .v-card.v-card,
 html.ct-glass .empty-subject-card.v-card.v-card,
 html.ct-glass .time-card.v-card.v-card,
 html.ct-glass .hitokoto-card.v-card.v-card,
+/* 通知条 / 考试安排 / 教程 / 安装授权卡：这几类不在 .grid-item 里，单独列出 */
+html.ct-glass .notice-card.v-card.v-card,
+html.ct-glass .wall-notice.v-card.v-card,
+html.ct-glass .concise-exam-card.v-card.v-card,
+html.ct-glass .theme-intro-card.v-card.v-card,
+html.ct-glass .tutorial-card.v-card.v-card,
+html.ct-glass .pwa-install-card.v-card.v-card,
 /* 作业墙布局里这两张卡直接挂在 rail 上，rail 类也一并列出 */
 html.ct-glass .wall-rail-time.v-card.v-card,
 html.ct-glass .wall-rail-hitokoto.v-card.v-card,
@@ -79,6 +86,26 @@ html.ct-glass .wall-foot .v-chip .v-chip__underlay {
   opacity: 0 !important;
 }
 
+/* ---------- 通知卡：玻璃底上留一点主题色 ----------
+   通知卡原来是 tonal 底（普通=主线蓝、加急=红），换成毛玻璃后底色会被玻璃盖掉。
+   这里补一层很淡的同色渐变，既保留玻璃质感，也不丢「加急」的辨识度。
+   颜色取 Vuetify 主题变量，带兜底值，取不到时退回品牌蓝 / 品牌红。 */
+html.ct-glass .notice-card.v-card.v-card,
+html.ct-glass .wall-notice.v-card.v-card {
+  background-image: linear-gradient(
+    rgba(var(--v-theme-primary, 47, 127, 209), 0.1),
+    rgba(var(--v-theme-primary, 47, 127, 209), 0.1)
+  ) !important;
+}
+
+html.ct-glass .notice-card.notice-urgent.v-card.v-card,
+html.ct-glass .wall-notice.notice-urgent.v-card.v-card {
+  background-image: linear-gradient(
+    rgba(var(--v-theme-error, 229, 72, 77), 0.16),
+    rgba(var(--v-theme-error, 229, 72, 77), 0.16)
+  ) !important;
+}
+
 /* ---------- 悬停：保住毛玻璃外观，不加额外高光 ----------
    BoardPage / index.scss / HomeworkGrid / HomeActions 里给这些元素写了带 !important 的
    hover 投影，会把毛玻璃的投影顶掉；这里用同一份投影覆盖回去，悬停前后一致。 */
@@ -86,6 +113,12 @@ html.ct-glass .grid-item > .v-card.v-card:hover,
 html.ct-glass .empty-subject-card.v-card.v-card:hover,
 html.ct-glass .time-card.v-card.v-card:hover,
 html.ct-glass .hitokoto-card.v-card.v-card:hover,
+html.ct-glass .notice-card.v-card.v-card:hover,
+html.ct-glass .wall-notice.v-card.v-card:hover,
+html.ct-glass .concise-exam-card.v-card.v-card:hover,
+html.ct-glass .theme-intro-card.v-card.v-card:hover,
+html.ct-glass .tutorial-card.v-card.v-card:hover,
+html.ct-glass .pwa-install-card.v-card.v-card:hover,
 html.ct-glass .wall-rail-time.v-card.v-card:hover,
 html.ct-glass .wall-rail-hitokoto.v-card.v-card:hover,
 html.ct-glass .wall-card:hover {
