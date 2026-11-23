@@ -1,0 +1,110 @@
+/* ============================================================
+   玻璃主题 · 全局规则
+
+   材质：毛玻璃（半透明底色 + backdrop blur + 1px 描边 + 柔和投影），
+   配方对齐底部浮动工具栏 / 右上角侧边按钮那一套（见 FloatingToolbar.vue）：
+     backdrop-filter: blur(22px) saturate(150%)
+     亮色 background rgba(255,255,255,0.52) / 暗色 rgba(30,30,30,0.34)
+     1px 描边 + 一层 12~32px 的柔和投影
+
+   开关：lib/cardTheme.ts 往 <html> 挂 .ct-glass（卡片主题 = 玻璃时）。
+   放在 main.scss 最后 @use，用来盖掉 base.css 里 .v-card / .v-btn 的底色与阴影。
+   ============================================================ */
+
+@use 'glass-mixins' as g;
+
+html.ct-glass {
+  /* ---- 亮色：白毛玻璃 ---- */
+  --glass-bg: rgba(255, 255, 255, 0.52);
+  --glass-border: rgba(28, 25, 23, 0.1);
+  --glass-shadow:
+    0 10px 26px rgba(28, 25, 23, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glass-blur: 18px;
+  --glass-saturate: 150%;
+}
+
+/* ---- 深色：黑毛玻璃 ----
+   v-theme--dark 可能挂在 <html> 本身，也可能挂在 .v-application 上，两种都覆盖 */
+html.ct-glass:is(.v-theme--dark, :has(.v-theme--dark)) {
+  --glass-bg: rgba(30, 30, 30, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- 卡片 ----------
+   权重是关键：base.css 里有一条
+   `.v-card:not(.v-card--variant-text):not(.v-card--variant-plain):not(.v-card--variant-outlined)`
+   —— 三个 :not() 各算一个类，合计 (0,4,0) 且带 !important。
+   写成 `html.ct-glass .time-card.v-card` 只有 (0,3,1)，会被它顶掉，
+   表现就是"常态没有效果、只有悬停（(0,4,1)）才出现"。
+   所以每个 v-card 宿主都再叠一个 `.v-card`，把权重抬到 (0,4,1) 才稳。
+
+   注意 `.wall-card` 是作业墙布局里的 <article>，没有 .v-card 类，
+   base.css 那条压不到它，用普通选择器即可（加 .v-card 反而会失配）。 */
+html.ct-glass .grid-item > .v-card.v-card,
+html.ct-glass .empty-subject-card.v-card.v-card,
+html.ct-glass .time-card.v-card.v-card,
+html.ct-glass .hitokoto-card.v-card.v-card,
+/* 作业墙布局里这两张卡直接挂在 rail 上，rail 类也一并列出 */
+html.ct-glass .wall-rail-time.v-card.v-card,
+html.ct-glass .wall-rail-hitokoto.v-card.v-card,
+html.ct-glass .wall-card {
+  @include g.glass;
+}
+
+/* ---------- 底栏胶囊按钮 / 空科目胶囊 / 自定义卡片 chip ----------
+   面积小，模糊半径收一档，否则边缘会糊成一团。
+
+   权重说明：HomeActions.vue 是 scoped 样式，其中暗色主题那条
+   `.v-theme--dark .home-actions .act-full { background: … !important }` 带上 Vue 的
+   [data-v-xxx] 后权重是 0,4,0 —— 这里重复写一个 `.act` 类把权重抬到 0,4,1。 */
+html.ct-glass .home-actions .act.act,
+html.ct-glass .empty-buttons .empty-btn.empty-btn,
+html.ct-glass .empty-subjects .v-chip.v-chip,
+html.ct-glass .wall-foot .v-chip.v-chip {
+  --glass-blur: 12px;
+  @include g.glass;
+}
+
+/* Vuetify 的 tonal/flat 变体会把颜色画在子元素 underlay 上，那层会盖住毛玻璃，
+   这里一并透明掉。 */
+html.ct-glass .home-actions .act .v-btn__underlay,
+html.ct-glass .empty-buttons .empty-btn .v-btn__underlay,
+html.ct-glass .empty-subjects .v-chip .v-chip__underlay,
+html.ct-glass .wall-foot .v-chip .v-chip__underlay {
+  background: transparent !important;
+  opacity: 0 !important;
+}
+
+/* ---------- 悬停：保住毛玻璃外观，不加额外高光 ----------
+   BoardPage / index.scss / HomeworkGrid / HomeActions 里给这些元素写了带 !important 的
+   hover 投影，会把毛玻璃的投影顶掉；这里用同一份投影覆盖回去，悬停前后一致。 */
+html.ct-glass .grid-item > .v-card.v-card:hover,
+html.ct-glass .empty-subject-card.v-card.v-card:hover,
+html.ct-glass .time-card.v-card.v-card:hover,
+html.ct-glass .hitokoto-card.v-card.v-card:hover,
+html.ct-glass .wall-rail-time.v-card.v-card:hover,
+html.ct-glass .wall-rail-hitokoto.v-card.v-card:hover,
+html.ct-glass .wall-card:hover {
+  box-shadow: var(--glass-shadow) !important;
+}
+
+html.ct-glass .home-actions .act.act:hover,
+html.ct-glass .empty-buttons .empty-btn.empty-btn:hover,
+html.ct-glass .empty-subjects .v-chip.v-chip:hover,
+html.ct-glass .wall-foot .v-chip.v-chip:hover {
+  box-shadow: var(--glass-shadow) !important;
+}
+
+/* ---------- 滚动降级 ----------
+   lib/glassScroll.ts 在滚动时给 <html> 挂 .ct-glass-scrolling。
+   毛玻璃的 backdrop-filter 在滚动时每帧都要重新采样背景，一屏二十来块
+   区域叠加会明显掉帧；滚动过程中人眼也看不清磨砂效果，先关掉，
+   停下 160ms 后自动恢复（半透明底色、描边、投影都保留）。 */
+html.ct-glass-scrolling :is(.v-card, .v-btn, .v-chip, .wall-card) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
