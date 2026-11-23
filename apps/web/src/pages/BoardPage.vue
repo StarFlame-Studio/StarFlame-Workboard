@@ -129,11 +129,11 @@
         <v-list density="compact">
           <v-list-item :prepend-icon="isDark ? 'mdi-weather-sunny' : 'mdi-weather-night'" :title="isDark ? '切换到亮色模式' : '切换到暗色模式'" @click="onToggleTheme" />
           <v-list-item :prepend-icon="layoutMode === 'wall' ? 'mdi-view-grid-outline' : 'mdi-view-dashboard-variant-outline'" :title="layoutMode === 'wall' ? '切换为经典布局' : '切换为作业墙布局'" @click="toggleLayout" />
-          <v-list-item v-if="!isReadOnly" prepend-icon="mdi-bullhorn-outline" title="发送通知" @click="notifyOpen = true" />
+          <v-list-item v-if="!isReadOnly" data-tutorial-anchor="notice-entry" prepend-icon="mdi-bullhorn-outline" title="发送通知" @click="openNoticeDialog" />
         </v-list>
       </v-menu>
-      <v-btn v-if="compact && !isReadOnly" aria-label="发送通知" class="mr-1" icon="mdi-bullhorn-outline" title="发送通知" variant="tonal" @click="notifyOpen = true" />
-      <v-btn v-else-if="!isReadOnly" class="mr-2" prepend-icon="mdi-chat" variant="tonal" @click="notifyOpen = true">发送通知</v-btn>
+      <v-btn v-if="compact && !isReadOnly" aria-label="发送通知" class="act-notify mr-1" data-tutorial-anchor="notice-entry" icon="mdi-bullhorn-outline" title="发送通知" variant="tonal" @click="openNoticeDialog" />
+      <v-btn v-else-if="!isReadOnly" class="act-notify mr-2" data-tutorial-anchor="notice-entry" prepend-icon="mdi-chat" variant="tonal" @click="openNoticeDialog">发送通知</v-btn>
       <v-btn aria-label="通知" icon="mdi-bell" title="通知" variant="text" @click="noticeDrawer = true" />
       <v-btn aria-label="设置" icon="mdi-cog" title="设置" variant="text" @click="go('settings')" />
     </template>
@@ -268,9 +268,9 @@
         :show-random-picker-button="randomPickerEnabled"
         :show-transfer-button="true"
         :synced="!board.loading"
-        @open-exam-picker="examPickerOpen = true"
+        @open-exam-picker="openExamPicker"
         @open-list="go('list')"
-        @open-random-picker="randomOpen = true"
+        @open-random-picker="openRandomPicker"
         @open-transfer="openTransfer"
         @toggle-fullscreen="toggleFullscreen"
       />
@@ -312,7 +312,7 @@
         :dynamic-sort="dynamicSortSetting"
         :empty-subject-display="emptySubjectDisplay"
         :enhanced-touch="enhancedTouchSetting"
-        :exams="board.exams"
+        :exams="allExams"
         :font-scale="fontScale / 28"
         :highlighted-cards="highlightedCards"
         :is-editing-disabled="!board.loaded || isReadOnly"
@@ -336,9 +336,9 @@
         :show-random-picker-button="randomPickerEnabled"
         :show-transfer-button="true"
         :synced="!board.loading"
-        @open-exam-picker="examPickerOpen = true"
+        @open-exam-picker="openExamPicker"
         @open-list="go('list')"
-        @open-random-picker="randomOpen = true"
+        @open-random-picker="openRandomPicker"
         @open-transfer="openTransfer"
         @toggle-fullscreen="toggleFullscreen"
       />
@@ -406,13 +406,24 @@
     :max-number="randomMaxNumberSetting"
     :min-number="randomMinNumberSetting"
     :spin-animation="randomAnimationSetting"
-    :students="board.students"
+    :students="pickerStudents"
+    @picked="onRandomPicked"
   />
 
-  <urgent-notification-dialog v-model="notifyOpen" @sent="onNoticeSent" />
+  <urgent-notification-dialog
+    v-model="notifyOpen"
+    @content-filled="signalTutorial('notice-filled')"
+    @sent="onNoticeSent"
+  />
 
   <tutorial-prompt-dialog v-model="tutorialAskOpen" @dismiss="dismissTutorial" @start="startTutorial" />
-  <tutorial-overlay ref="tutorialRef" v-model="tutorialOpen" @finish="onTutorialFinish" />
+  <advanced-tutorial-prompt-dialog
+    v-model="advancedAskOpen"
+    @dismiss="dismissAdvancedAsk"
+    @start="openAdvancedChooser"
+  />
+  <advanced-tutorial-dialog v-model="advancedChooserOpen" @start="startAdvancedTutorial" />
+  <tutorial-overlay ref="tutorialRef" v-model="tutorialOpen" :steps="activeTutorialSteps" @finish="onTutorialFinish" />
 
   <homework-transfer-dialog v-model="transferOpen" />
 
@@ -426,8 +437,9 @@
   <exam-board-picker
     v-model="examPickerOpen"
     :checked-ids="examCardIds"
-    :exams="board.exams"
-    @update:checked-ids="saveExamCardIds"
+    :demo-exam-id="tutorialDemoExams[0]?.id ?? null"
+    :exams="allExams"
+    @update:checked-ids="onExamCheckedChange"
     @open-full-page="go('exams')"
   />
 
@@ -520,7 +532,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useDisplay } from 'vuetify'
-import type { ExamItem, NoticeItem, SubjectInfo } from '@starflame/shared'
+import type { ExamItem, ExamSubjectItem, NoticeItem, StudentItem, SubjectInfo } from '@starflame/shared'
 import { getData, patchData, postData } from '@/lib/api'
 import { playTone, unlockAudioOnFirstGesture } from '@/lib/soundPresets'
 import { ensureNoticePermission, sendSystemNotice } from '@/lib/systemNotify'
@@ -529,6 +541,7 @@ import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSou
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
 import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
+import { localSettings } from '@/lib/localSettings'
 import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
 import { startGlassScrollDegrade, stopGlassScrollDegrade } from '@/lib/glassScroll'
 
@@ -554,6 +567,8 @@ import PwaInstallCard from '@/components/PwaInstallCard.vue'
 import UrgentNotificationDialog from '@/components/UrgentNotificationDialog.vue'
 import TutorialPromptDialog from '@/components/tutorial/TutorialPromptDialog.vue'
 import TutorialOverlay from '@/components/tutorial/TutorialOverlay.vue'
+import AdvancedTutorialDialog from '@/components/tutorial/AdvancedTutorialDialog.vue'
+import AdvancedTutorialPromptDialog from '@/components/tutorial/AdvancedTutorialPromptDialog.vue'
 import HomeworkTransferDialog from '@/components/home/HomeworkTransferDialog.vue'
 import NoticeReadDialog from '@/components/NoticeReadDialog.vue'
 import ExamBoardPicker from '@/components/ExamBoardPicker.vue'
@@ -561,11 +576,18 @@ import BoardSkeleton from '@/components/skeleton/BoardSkeleton.vue'
 import ExamConfigDialog from '@/components/home/ExamConfigDialog.vue'
 import { consumeSettingsDirty } from '@/lib/settingsDirty'
 import {
+  ADVANCED_TUTORIAL_STEPS,
+  BASIC_TUTORIAL_STEPS,
+  consumeAdvancedTutorialMenu,
   consumeTutorialRequest,
   isBasicTutorialSeen,
+  markAdvancedTutorialAsked,
   markBasicTutorialSeen,
+  shouldAskAdvancedTutorial,
   snoozeBasicTutorial,
+  type AdvancedTutorialId,
   type TutorialActionId,
+  type TutorialStep,
 } from '@/lib/tutorial'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { deviceMode, isMobileUi } from '@/lib/deviceMode'
@@ -592,16 +614,34 @@ const editorOpen = ref(false)
 const attDialogOpen = ref(false)
 const randomOpen = ref(false)
 const notifyOpen = ref(false)
-// ---------- 引导式教程（基础版） ----------
+// ---------- 引导式教程（基础版 + 进阶） ----------
 const tutorialAskOpen = ref(false)
 const tutorialOpen = ref(false)
 const tutorialRef = ref<InstanceType<typeof TutorialOverlay> | null>(null)
+/** 当前跑的是基础教程还是某段进阶教程 */
+const tutorialKind = ref<'basic' | 'advanced'>('basic')
+const advancedId = ref<AdvancedTutorialId | null>(null)
+/** 基础教程结束后追问「要不要看进阶教程」 */
+const advancedAskOpen = ref(false)
+/** 进阶教程选择弹窗 */
+const advancedChooserOpen = ref(false)
+/**
+ * 进阶教程临时生成的演示数据。
+ * 只放在内存里、不写接口：本地模式下写接口会进待同步队列，教程结束还得清队列太脆弱。
+ */
+const tutorialDemoExams = ref<ExamItem[]>([])
+const tutorialDemoStudents = ref<StudentItem[]>([])
+const tutorialDemoPickedExamIds = ref<string[]>([])
 const examPickerOpen = ref(false)
 // 点击首页考试卡片 → 打开该考试的详情浏览弹窗
 const examDetailOpen = ref(false)
 const examDetailId = ref<string | null>(null)
+/** 看板上的全部考试 = 真正的考试 + 进阶教程临时生成的模拟考试 */
+const allExams = computed<ExamItem[]>(() => [...tutorialDemoExams.value, ...board.exams])
+/** 随机点名的学生池 = 真正的花名册 + 进阶教程的演示名单 */
+const pickerStudents = computed<StudentItem[]>(() => [...board.students, ...tutorialDemoStudents.value])
 const examDetail = computed<ExamItem | null>(
-  () => board.exams.find((exam) => exam.id === examDetailId.value) ?? null,
+  () => allExams.value.find((exam) => exam.id === examDetailId.value) ?? null,
 )
 const noticeDrawer = ref(false)
 const editorKind = ref<'subject' | 'custom'>('subject')
@@ -894,9 +934,10 @@ const settings = computed(() => (board.data?.settings ?? {}) as Record<string, u
 // 液态玻璃还额外把 liquid.* 那组参数翻译成 CSS 变量 + 折射层 props。
 // 设置页改完返回看板时，bootstrap 会带回新的 settings，这里随之切换。
 watchEffect(() => {
-  const mode = cardThemeSetting(settings.value)
+  // 卡片主题与 liquid.* 都是本机设置（localSettings），不随云端设置走
+  const mode = cardThemeSetting(localSettings.value)
   applyCardTheme(mode)
-  applyLiquidGlassConfig(readLiquidGlassConfig(settings.value))
+  applyLiquidGlassConfig(readLiquidGlassConfig(localSettings.value))
   // 玻璃/液态玻璃才需要滚动降级：滚动期间临时关掉折射与背景模糊，停下再恢复（见 lib/glassScroll.ts）
   if (mode === 'liquid' || mode === 'glass') startGlassScrollDegrade()
   else stopGlassScrollDegrade()
@@ -1204,13 +1245,15 @@ const customCards = computed<CustomCard[]>(() => {
 // 手动选择要展示在看板上的考试配置
 const examCardIds = computed<string[]>(() => {
   const raw = settings.value.examCardIds
-  return Array.isArray(raw) ? (raw as string[]) : []
+  const saved = Array.isArray(raw) ? (raw as string[]) : []
+  // 进阶教程里勾选的模拟考试只存在于内存，不写进班级设置
+  return [...saved, ...tutorialDemoPickedExamIds.value]
 })
 
 const visibleExams = computed(() => {
   const ids = examCardIds.value
   if (ids.length === 0) return []
-  return board.exams.filter((exam) => ids.includes(exam.id))
+  return allExams.value.filter((exam) => ids.includes(exam.id))
 })
 
 function openExamDetail(id: string): void {
@@ -1403,6 +1446,7 @@ async function saveHomework(content: string): Promise<void> {
 
 function onNoticeSent(): void {
   notify('通知已发送')
+  signalTutorial('notice-sent')
   void board.refresh()
 }
 
@@ -1517,9 +1561,21 @@ function openTransfer(): void {
   transferOpen.value = true
 }
 
+/** 教程浮层当前要展示的步骤：基础教程或某段进阶教程 */
+const activeTutorialSteps = computed<TutorialStep[]>(() =>
+  advancedId.value ? ADVANCED_TUTORIAL_STEPS[advancedId.value] : BASIC_TUTORIAL_STEPS,
+)
+
 /** 首次进入作业板时询问是否查看教程；设置页点过「重新观看」则直接开始 */
 function maybeAskTutorial(): void {
+  // 设置页点过「进阶教程」：回到看板直接弹出进阶选择弹窗
+  if (consumeAdvancedTutorialMenu()) {
+    advancedChooserOpen.value = true
+    return
+  }
   if (consumeTutorialRequest()) {
+    tutorialKind.value = 'basic'
+    advancedId.value = null
     tutorialOpen.value = true
     return
   }
@@ -1529,6 +1585,8 @@ function maybeAskTutorial(): void {
 
 function startTutorial(): void {
   tutorialAskOpen.value = false
+  tutorialKind.value = 'basic'
+  advancedId.value = null
   tutorialOpen.value = true
   markBasicTutorialSeen()
 }
@@ -1545,10 +1603,136 @@ function signalTutorial(action: TutorialActionId): void {
   tutorialRef.value?.notifyAction(action)
 }
 
+/** 打开考试看板选择弹窗（教程里的「点一下考试看板按钮」） */
+function openExamPicker(): void {
+  signalTutorial('open-exam-picker')
+  examPickerOpen.value = true
+}
+
+/** 打开随机点名（教程里的「点一下随机点名按钮」） */
+function openRandomPicker(): void {
+  signalTutorial('open-random-picker')
+  randomOpen.value = true
+}
+
+/** 打开发送通知（教程里的「点一下发送通知」；三个入口共用） */
+function openNoticeDialog(): void {
+  signalTutorial('open-notice-dialog')
+  notifyOpen.value = true
+}
+
+function onRandomPicked(): void {
+  signalTutorial('random-picked')
+}
+
+/** 考试勾选变化：模拟考试只记在内存里，真正的考试 id 才写回班级设置 */
+async function onExamCheckedChange(ids: string[]): Promise<void> {
+  const demoIds = new Set(tutorialDemoExams.value.map((exam) => exam.id))
+  const demoPicked = ids.filter((id) => demoIds.has(id))
+  const realIds = ids.filter((id) => !demoIds.has(id))
+  const demoChanged = demoPicked.length !== tutorialDemoPickedExamIds.value.length
+  tutorialDemoPickedExamIds.value = demoPicked
+  if (demoChanged) {
+    signalTutorial('toggle-exam-card')
+    // 勾上模拟考试后把弹窗收起来，教程下一步才能看到看板上的考试卡
+    if (tutorialKind.value === 'advanced' && demoPicked.length > 0) examPickerOpen.value = false
+  }
+  // 只改了模拟考试时不写班级设置，避免一次没意义的 PATCH
+  const saved = Array.isArray(settings.value.examCardIds) ? (settings.value.examCardIds as string[]) : []
+  const savedSet = new Set(saved)
+  const realChanged = realIds.length !== savedSet.size || realIds.some((id) => !savedSet.has(id))
+  if (realChanged) await saveExamCardIds(realIds)
+}
+
+// ---------- 进阶教程的演示数据（只放在内存里，教程结束即清理） ----------
+
+function buildDemoExam(): ExamItem {
+  const subjects = board.subjects.slice(0, 2)
+  const today = toDateString(new Date())
+  const at = (time: string): string => new Date(today + 'T' + time + ':00').toISOString()
+  const examSubjects: ExamSubjectItem[] = subjects.map((subject, index) => ({
+    id: 'demo-subject-' + index,
+    subjectId: subject.id,
+    startAt: at(index === 0 ? '08:30' : '10:20'),
+    endAt: at(index === 0 ? '10:00' : '11:50'),
+    room: null,
+    note: null,
+  }))
+  return {
+    id: 'demo-exam-' + Date.now().toString(36),
+    title: '模拟考试（教程演示）',
+    note: null,
+    status: 'planned',
+    subjects: examSubjects,
+  }
+}
+
+const DEMO_STUDENT_NAMES = ['演示·小明', '演示·小红', '演示·小刚', '演示·小丽', '演示·小强', '演示·小美']
+
+function buildDemoStudents(): StudentItem[] {
+  return DEMO_STUDENT_NAMES.map((name, index) => ({
+    id: 'demo-student-' + index,
+    name,
+    studentNo: String(index + 1),
+    status: 'active' as const,
+    sortIndex: index,
+  }))
+}
+
+/** 清掉进阶教程的临时数据，并把教程期间打开的弹窗关掉 */
+function cleanupTutorialDemo(): void {
+  tutorialDemoExams.value = []
+  tutorialDemoStudents.value = []
+  tutorialDemoPickedExamIds.value = []
+  examPickerOpen.value = false
+  randomOpen.value = false
+  notifyOpen.value = false
+}
+
+/** 开始一段进阶教程：先备好演示数据，再打开浮层 */
+function startAdvancedTutorial(id: AdvancedTutorialId): void {
+  cleanupTutorialDemo()
+  if (id === 'exam') {
+    if (board.subjects.length === 0) {
+      notify('这个班级还没有科目，无法演示考试看板', 'warning')
+      return
+    }
+    tutorialDemoExams.value = [buildDemoExam()]
+  } else if (id === 'random') {
+    // 已有花名册就用真的；没有才临时建一份演示名单
+    if (board.students.length === 0) tutorialDemoStudents.value = buildDemoStudents()
+  }
+  advancedChooserOpen.value = false
+  tutorialKind.value = 'advanced'
+  advancedId.value = id
+  tutorialOpen.value = true
+}
+
+/** 基础教程结束后追问进阶教程；以后再说就不再追问 */
+function dismissAdvancedAsk(): void {
+  advancedAskOpen.value = false
+  markAdvancedTutorialAsked()
+}
+
+function openAdvancedChooser(): void {
+  advancedAskOpen.value = false
+  markAdvancedTutorialAsked()
+  advancedChooserOpen.value = true
+}
+
 function onTutorialFinish(): void {
+  if (tutorialKind.value === 'advanced') {
+    cleanupTutorialDemo()
+    tutorialKind.value = 'basic'
+    advancedId.value = null
+    return
+  }
   markBasicTutorialSeen()
   // 教程里翻过日期，结束后切回今天，避免用户停在历史某一天继续用
   if (!isToday.value) void switchDate(toDateString(new Date()))
+  // 基础教程刚看完：问一次要不要继续看进阶教程
+  if (shouldAskAdvancedTutorial()) advancedAskOpen.value = true
+  else markAdvancedTutorialAsked()
 }
 
 function notify(text: string, color = 'success'): void {

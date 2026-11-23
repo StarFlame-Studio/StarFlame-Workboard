@@ -7,6 +7,7 @@ import { initDeviceMode } from '@/lib/deviceMode'
 import { setUnauthorizedHandler } from '@/lib/api'
 import { ROUTES } from '@/lib/nav'
 import { applyStoredTheme } from '@/lib/theme'
+import { applyStoredCardTheme } from '@/lib/cardTheme'
 import VersionBadge from '@/components/VersionBadge.vue'
 import UpdateNoticeDialog from '@/components/UpdateNoticeDialog.vue'
 import UpdateProgressDialog from '@/components/UpdateProgressDialog.vue'
@@ -92,8 +93,9 @@ export function mountPage(PageComponent: Component, options?: { public?: boolean
 
   installBootErrorGuard()
 
-  // 挂载前先套用上次的主题，避免闪一帧默认色
+  // 挂载前先套用上次的主题与卡片材质，避免闪一帧默认色
   applyStoredTheme()
+  applyStoredCardTheme()
   // 数据源与离线模块失败不能连累整页：任何一个抛异常都会让 #app 保持空白
   try {
     initDataSource()

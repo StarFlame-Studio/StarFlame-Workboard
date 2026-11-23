@@ -11,7 +11,7 @@
       <v-divider />
 
       <v-list class="pa-2">
-        <v-list-item class="mb-1 rounded-lg" @click="openFullPage">
+        <v-list-item class="mb-1 rounded-lg" data-tutorial-anchor="exam-open-page" @click="openFullPage">
           <template #prepend>
             <v-icon class="mr-2" color="success">mdi-open-in-new</v-icon>
           </template>
@@ -23,7 +23,13 @@
 
         <v-divider class="my-2" />
 
-        <v-list-item v-for="exam in exams" :key="exam.id" class="rounded-lg" @click="toggle(exam.id)">
+        <v-list-item
+          v-for="exam in exams"
+          :key="exam.id"
+          :data-tutorial-anchor="exam.id === demoExamId ? 'exam-demo-item' : 'exam-item'"
+          class="rounded-lg"
+          @click="toggle(exam.id)"
+        >
           <template #prepend>
             <v-icon class="mr-2" color="primary">mdi-calendar-text</v-icon>
           </template>
@@ -59,6 +65,8 @@ const props = defineProps<{
   modelValue: boolean
   exams: ExamItem[]
   checkedIds: string[]
+  /** 进阶教程临时生成的模拟考试 id：列表项会挂上单独的教程锚点 */
+  demoExamId?: string | null
 }>()
 
 const emit = defineEmits<{

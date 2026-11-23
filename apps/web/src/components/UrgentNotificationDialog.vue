@@ -13,7 +13,7 @@
       <v-divider />
       <v-card-text class="pa-4">
         <v-text-field v-model="form.title" class="mb-2" counter="64" label="标题（可留空）" maxlength="64" placeholder="例如：明天体检" />
-        <v-textarea v-model="form.content" auto-grow label="内容" maxlength="2000" placeholder="早上 7:30 到校，空腹" rows="3" />
+        <v-textarea v-model="form.content" auto-grow data-tutorial-anchor="notice-content" label="内容" maxlength="2000" placeholder="早上 7:30 到校，空腹" rows="3" />
 
         <div v-if="form.pinned" class="mt-2">
           <div class="text-caption text-medium-emphasis mb-1">有效时间</div>
@@ -109,7 +109,7 @@
       <v-card-actions class="pa-4">
         <v-btn variant="text" @click="close">取消</v-btn>
         <v-spacer />
-        <v-btn v-if="!readOnly" :disabled="(!form.title.trim() && !form.content.trim()) || (!form.popup && !form.pinned)" :loading="sending" color="primary" variant="elevated" @click="submit">
+        <v-btn v-if="!readOnly" :disabled="(!form.title.trim() && !form.content.trim()) || (!form.popup && !form.pinned)" :loading="sending" color="primary" data-tutorial-anchor="notice-send" variant="elevated" @click="submit">
           {{ editingId ? '保存修改' : '发送' }}
         </v-btn>
       </v-card-actions>
@@ -151,7 +151,7 @@ const session = useSessionStore()
 const readOnly = computed(() => session.readOnly)
 
 const props = defineProps<{ modelValue: boolean }>()
-const emit = defineEmits<{ 'update:modelValue': [value: boolean]; sent: [] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: boolean]; sent: []; 'content-filled': [] }>()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -159,6 +159,17 @@ const visible = computed({
 })
 
 const form = reactive({ title: '', content: '', urgent: false, pinned: true, popup: true })
+
+// 进阶教程「发送通知」用：内容框第一次有文字时通知一次，教程据此推进
+let contentFilledEmitted = false
+watch(
+  () => form.content,
+  (value) => {
+    if (contentFilledEmitted || !value.trim()) return
+    contentFilledEmitted = true
+    emit('content-filled')
+  },
+)
 const sending = ref(false)
 const error = ref('')
 
@@ -246,6 +257,7 @@ function resetForm(): void {
   duration.value = '30'
   customExpire.value = ''
   error.value = ''
+  contentFilledEmitted = false
 }
 
 function startEdit(item: NoticeRow): void {

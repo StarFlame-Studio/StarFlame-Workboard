@@ -82,11 +82,12 @@ import { getData, patchData } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 import SettingsCard from '@/components/settings/SettingsCard.vue'
 import { markSettingsDirty } from '@/lib/settingsDirty'
+import { getDef } from '@/lib/settingDefs'
 
 /** 备份文件格式标识与版本 */
 const FORMAT = 'starflame-board-settings'
 const VERSION = 1
-/** 仅本机生效的设置项：不导出、不导入 */
+/** 仅本机生效的设置项：不导出、不导入（由 settingDefs 的 local 标记决定） */
 const LOCAL_ONLY_KEYS = ['theme.mode']
 /** 预览用的设置项名（中文提示，缺失时直接显示键名） */
 const KEY_LABELS: Record<string, string> = {
@@ -142,7 +143,7 @@ function notify(text: string, color = 'success'): void {
 function pick<T extends Record<string, unknown>>(source: T): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(source ?? {})) {
-    if (LOCAL_ONLY_KEYS.includes(key)) continue
+    if (LOCAL_ONLY_KEYS.includes(key) || getDef(key)?.local) continue
     out[key] = value
   }
   return out

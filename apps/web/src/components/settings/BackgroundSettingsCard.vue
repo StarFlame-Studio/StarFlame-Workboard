@@ -77,7 +77,7 @@
           >
             <v-icon class="mb-2" color="primary" size="40">mdi-image-plus</v-icon>
             <div class="text-body-2">点击或拖拽图片到此处上传</div>
-            <div class="text-caption text-medium-emphasis mt-1">支持 JPG、PNG、WebP、GIF（建议小于 3MB）</div>
+            <div class="text-caption text-medium-emphasis mt-1">支持 JPG、PNG、WebP、GIF（最大 5MB，建议小于 2MB）</div>
             <input ref="fileInput" accept="image/*" style="display: none" type="file" @change="handleFileChange" />
           </div>
 
@@ -213,11 +213,16 @@ function triggerFileInput(): void {
 }
 
 function readFile(file: File): void {
-  if (file.size > 3 * 1024 * 1024) {
-    uploadWarning.value = '图片超过 3MB，建议压缩后再上传'
+  // 上限 5MB：图片会转成 data URL 存进班级设置，太大既拖慢同步也拖慢大屏首屏
+  if (file.size > 5 * 1024 * 1024) {
+    uploadWarning.value = '图片超过 5MB，请压缩后再上传'
     return
   }
-  uploadWarning.value = ''
+  // 2MB 以上仍然允许上传，但提前告知可能卡顿
+  uploadWarning.value =
+    file.size > 2 * 1024 * 1024
+      ? '图片较大（超过 2MB），大屏加载时可能出现卡顿，建议压缩到 2MB 以内'
+      : ''
   const reader = new FileReader()
   reader.onload = () => update('background.imageData', String(reader.result ?? ''))
   reader.readAsDataURL(file)

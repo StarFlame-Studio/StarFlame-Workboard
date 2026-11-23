@@ -30,8 +30,9 @@ export const SETTING_DEFS: SettingDef[] = [
   // ---- 显示 display.* ----
   { key: 'theme.mode', title: '主题模式', desc: '本机设置，不同步云端（每台设备各自生效）', icon: 'mdi-theme-light-dark', type: 'select', default: 'dark', local: true,
     options: [{ title: '明亮', value: 'light' }, { title: '暗黑', value: 'dark' }] },
-  // 卡片主题是「看板材质」，属于班级设置（与看板一起同步到所有设备），所以不加 local
-  { key: 'theme.card', title: '卡片主题', desc: '学科卡片与底栏按钮的外观风格', icon: 'mdi-palette-outline', type: 'select', default: 'default',
+  // 卡片主题与下面的 liquid.* 都是「这台设备看起来怎样」，属于本机设置：
+  // 不同设备屏幕/显卡差异大，参数同步到云端只会互相覆盖，所以不加进班级设置。
+  { key: 'theme.card', title: '卡片主题', desc: '本机设置，不同步云端（每台设备各自生效）', icon: 'mdi-palette-outline', type: 'select', default: 'glass',
     options: [{ title: '默认', value: 'default' }, { title: '玻璃', value: 'glass' }, { title: '液态玻璃', value: 'liquid' }] },
 
   // ---- 液态玻璃 liquid.* ----
@@ -158,6 +159,11 @@ export const SETTING_DEFS: SettingDef[] = [
       { title: '本地缓存模式（离线可用）', value: 'local-cache' },
     ] },
 ]
+
+// 液态玻璃参数跟随卡片主题一起本机化：不同设备屏幕/显卡不同，同一套数值同步过去只会互相覆盖
+for (const def of SETTING_DEFS) {
+  if (def.key === 'theme.card' || def.key.startsWith('liquid.')) def.local = true
+}
 
 export const SETTING_MAP: Record<string, SettingDef> = Object.fromEntries(
   SETTING_DEFS.map((item) => [item.key, item]),

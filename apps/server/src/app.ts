@@ -36,7 +36,8 @@ export function createApp() {
     }),
   )
 
-  app.use(express.json({ limit: '1mb' }))
+  // 5MB 本地背景图转成 data URL 约 6.8MB，留出余量
+  app.use(express.json({ limit: '8mb' }))
   app.use(express.urlencoded({ extended: false }))
 
   app.use(API_PREFIX + '/health', healthRouter)

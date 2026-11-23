@@ -23,6 +23,7 @@
       <v-btn
         append-icon="mdi-dice-multiple"
         class="act act-random"
+        data-tutorial-anchor="random-btn"
         prepend-icon="mdi-account-question"
         @click="$emit('open-random-picker')"
       >
@@ -31,7 +32,7 @@
     </liquid-glass-pill>
 
     <liquid-glass-pill v-if="showExamScheduleButton">
-      <v-btn class="act act-exam" prepend-icon="mdi-calendar-check" @click="$emit('open-exam-picker')">
+      <v-btn class="act act-exam" data-tutorial-anchor="exam-btn" prepend-icon="mdi-calendar-check" @click="$emit('open-exam-picker')">
         考试看板
       </v-btn>
     </liquid-glass-pill>

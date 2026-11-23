@@ -11,6 +11,8 @@
  * 卡片里那层折射由 <LiquidGlass> 在读到这个模式后自己挂上，不需要 prop 穿透。
  */
 import { ref } from 'vue'
+import { localSettings } from './localSettings'
+import { applyLiquidGlassConfig, readLiquidGlassConfig } from './liquidGlassSettings'
 
 export type CardThemeMode = 'default' | 'glass' | 'liquid'
 
@@ -18,11 +20,14 @@ export type CardThemeMode = 'default' | 'glass' | 'liquid'
 export const CARD_THEME_CLASS = 'ct-glass'
 export const LIQUID_THEME_CLASS = 'ct-liquid'
 
-/** 设置项 key：类班级设置，跟看板一起走云端 */
+/** 设置项 key：本机设置，只存 localStorage（见 lib/localSettings.ts） */
 export const CARD_THEME_KEY = 'theme.card'
 
+/** 默认卡片主题：新版默认给毛玻璃质感，用户可在设置 → 主题里改 */
+export const DEFAULT_CARD_THEME: CardThemeMode = 'glass'
+
 /** 当前卡片主题（响应式）：<LiquidGlass> 靠它决定要不要渲染折射层 */
-export const cardThemeMode = ref<CardThemeMode>('default')
+export const cardThemeMode = ref<CardThemeMode>(DEFAULT_CARD_THEME)
 
 /**
  * 从班级设置里读出卡片主题。
@@ -32,7 +37,18 @@ export const cardThemeMode = ref<CardThemeMode>('default')
  */
 export function cardThemeSetting(settings: Record<string, unknown> | undefined | null): CardThemeMode {
   const raw = settings?.[CARD_THEME_KEY]
-  return raw === 'glass' || raw === 'liquid' ? raw : 'default'
+  // 显式选过就照用户的选择；没选过（新设备 / 从云端旧值迁移）用新的默认材质
+  if (raw === 'default' || raw === 'glass' || raw === 'liquid') return raw
+  return DEFAULT_CARD_THEME
+}
+
+/**
+ * 首屏尽早套用本机卡片主题 + 液态玻璃参数，避免闪一帧默认材质。
+ * 必须在 bootstrap 里、app.mount 之前调用（与 applyStoredTheme 同一时机）。
+ */
+export function applyStoredCardTheme(): void {
+  applyCardTheme(cardThemeSetting(localSettings.value))
+  applyLiquidGlassConfig(readLiquidGlassConfig(localSettings.value))
 }
 
 export function applyCardTheme(mode: CardThemeMode): void {

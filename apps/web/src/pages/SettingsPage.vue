@@ -65,8 +65,12 @@
             <p class="text-body-2 text-medium-emphasis mb-2">
               重新观看基础教程：如何布置作业、调整字体大小、切换日期。下次打开作业板时教程会自动开始。
             </p>
+            <p class="text-body-2 text-medium-emphasis mb-2">
+              进阶教程：单独练习考试看板、随机点名、发送通知，每段都可以随时开始。
+            </p>
             <template #actions>
               <v-btn color="primary" prepend-icon="mdi-play-circle" variant="tonal" @click="replayTutorial">重新观看使用教程</v-btn>
+              <v-btn class="ml-2" prepend-icon="mdi-school" variant="tonal" @click="replayAdvanced">进阶教程</v-btn>
             </template>
           </settings-card>
 
@@ -239,7 +243,9 @@ import ScheduleSettingsCard from '@/components/settings/ScheduleSettingsCard.vue
 import HitokotoSettingsCard from '@/components/settings/HitokotoSettingsCard.vue'
 import FormSkeleton from '@/components/skeleton/FormSkeleton.vue'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
-import { requestBasicTutorial } from '@/lib/tutorial'
+import { requestAdvancedTutorialMenu, requestBasicTutorial } from '@/lib/tutorial'
+import { isLocalSettingKey, localSettings, writeLocalSetting } from '@/lib/localSettings'
+import { applyStoredCardTheme } from '@/lib/cardTheme'
 
 const session = useSessionStore()
 const board = useBoardStore()
@@ -247,6 +253,12 @@ const board = useBoardStore()
 /** 设置页请求重新观看教程：写一次性标记，返回看板时直接开始 */
 function replayTutorial(): void {
   requestBasicTutorial()
+  void go('board')
+}
+
+/** 设置页打开进阶教程选择弹窗（回到看板后弹出） */
+function replayAdvanced(): void {
+  requestAdvancedTutorialMenu()
   void go('board')
 }
 
@@ -393,6 +405,12 @@ function onThemeChange(value: unknown): void {
 
 function onSettingUpdate(key: string, value: unknown): void {
   settings[key] = value
+  // 本机设置（卡片主题、液态玻璃参数）：只存 localStorage，不上云、不触发同步
+  if (isLocalSettingKey(key)) {
+    writeLocalSetting(key, value)
+    applyStoredCardTheme()
+    return
+  }
   dirty.value = true
   syncState.value = 'pending'
   // 作息/课程节次改动要立刻同步给桌面主进程，上课时段闸门才能马上生效
@@ -490,6 +508,10 @@ async function loadAll(): Promise<void> {
     }
     // 主题是本机设置：永远以 localStorage 为准，忽略云端残留的 theme.mode
     delete settings['theme.mode']
+    // 卡片主题与液态玻璃参数同样是本机设置，用本地存储覆盖云端旧值
+    for (const [key, value] of Object.entries(localSettings.value)) {
+      if (isLocalSettingKey(key)) settings[key] = value
+    }
     themeMode.value = currentTheme()
     applyTheme(themeMode.value as ThemeMode)
     studentCount.value = Array.isArray(board.students) ? board.students.length : 0

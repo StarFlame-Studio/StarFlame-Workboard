@@ -34,6 +34,7 @@
 
           <v-btn
             :disabled="pool.length === 0 || spinning"
+            data-tutorial-anchor="random-spin"
             :loading="spinning"
             block
             class="mb-4"
@@ -76,7 +77,7 @@
 
         <template v-else>
           <div class="text-overline text-medium-emphasis mb-4">抽取结果</div>
-          <div class="d-flex flex-wrap justify-center mb-6" style="gap: 12px">
+          <div class="d-flex flex-wrap justify-center mb-6" style="gap: 12px" data-tutorial-anchor="random-result">
             <v-chip
               v-for="(item, index) in results"
               :key="item.id"
@@ -141,7 +142,7 @@ const props = withDefaults(
   },
 )
 
-const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: boolean]; picked: [] }>()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -253,6 +254,7 @@ function spin(): void {
   // 关闭滚动动画后直接出结果
   if (!props.spinAnimation) {
     results.value = pick()
+    emit('picked')
     return
   }
   spinning.value = true
@@ -266,6 +268,7 @@ function spin(): void {
       window.clearInterval(timer)
       results.value = pick()
       spinning.value = false
+      emit('picked')
     }
   }, 60)
 }

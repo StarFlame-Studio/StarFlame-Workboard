@@ -1,5 +1,5 @@
 <template>
-  <v-card border class="concise-exam-card fill-height d-flex flex-column cursor-pointer hover-elevation" elevation="0" rounded="xl" @click="$emit('open', exam.id)">
+  <v-card border class="concise-exam-card fill-height d-flex flex-column cursor-pointer hover-elevation" data-tutorial-anchor="exam-card" elevation="0" rounded="xl" @click="$emit('open', exam.id)">
     <liquid-glass />
     <v-card-title class="d-flex align-center py-2 px-3 text-subtitle-1 font-weight-bold">
       <v-icon class="mr-2" color="primary" size="small">mdi-calendar-check</v-icon>

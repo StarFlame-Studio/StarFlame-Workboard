@@ -210,11 +210,7 @@ const settingGroups = [
       'background.opacity',
     ],
   },
-  {
-    key: 'cardTheme',
-    label: '卡片主题',
-    keys: ['theme.card'],
-  },
+  // 卡片主题与液态玻璃参数是本机设置（每台设备各自生效），预配链接不再携带
 ]
 
 function isGroupSelected(groupKey: string): boolean {
