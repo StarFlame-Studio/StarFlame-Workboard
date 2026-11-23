@@ -1,5 +1,6 @@
 <template>
-  <v-card border class="fill-height d-flex flex-column cursor-pointer hover-elevation" elevation="0" rounded="xl" @click="$emit('open', exam.id)">
+  <v-card border class="concise-exam-card fill-height d-flex flex-column cursor-pointer hover-elevation" elevation="0" rounded="xl" @click="$emit('open', exam.id)">
+    <liquid-glass />
     <v-card-title class="d-flex align-center py-2 px-3 text-subtitle-1 font-weight-bold">
       <v-icon class="mr-2" color="primary" size="small">mdi-calendar-check</v-icon>
       <span class="text-truncate">{{ exam.title || '考试安排' }}</span>
@@ -32,6 +33,7 @@
 import { computed } from 'vue'
 import type { ExamItem, SubjectInfo } from '@starflame/shared'
 import RelativeTimeDisplay from '@/components/RelativeTimeDisplay.vue'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
 
 const props = defineProps<{ exam: ExamItem; subjects: SubjectInfo[]; contentStyle?: Record<string, string> }>()
 defineEmits<{ open: [id: string] }>()

@@ -42,6 +42,7 @@
           @mousemove="handleMouseMove"
           @touchmove="handleTouchMove"
         >
+          <liquid-glass />
           <v-card-title class="d-flex align-center">
             <v-icon class="mr-2" color="primary" icon="mdi-account-group" />
             出勤统计
@@ -78,6 +79,7 @@
           @mousemove="handleMouseMove"
           @touchmove="handleTouchMove"
         >
+          <liquid-glass />
           <v-card-title class="sf-subject-title">{{ item.name }}</v-card-title>
           <v-card-text class="sf-body" :style="contentStyle">
             <div v-for="(text, lineIndex) in splitPoint(item.content)" :key="lineIndex" class="sf-body-line">
@@ -92,54 +94,44 @@
 
   <div class="empty-subjects mt-4">
     <div v-if="isMobile" class="d-flex flex-wrap justify-center">
-      <v-chip
-        v-for="subject in unusedSubjects"
-        :key="subject.id"
-        class="ma-1"
-        color="primary"
-        variant="tonal"
-        @click="handleCardClick('dialog', subject.id)"
-      >
-        <v-icon start size="small">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
-        {{ subject.name }}
-      </v-chip>
-      <v-chip
-        v-for="card in unusedCustom"
-        :key="card.id"
-        class="ma-1"
-        color="primary"
-        variant="tonal"
-        @click="handleCardClick('dialog', 'custom-' + card.id)"
-      >
-        <v-icon start size="small">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
-        {{ card.title }}
-      </v-chip>
+      <liquid-glass-pill v-for="subject in unusedSubjects" :key="subject.id">
+        <v-chip
+          class="ma-1"
+          color="primary"
+          variant="tonal"
+          @click="handleCardClick('dialog', subject.id)"
+        >
+          <v-icon start size="small">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
+          {{ subject.name }}
+        </v-chip>
+      </liquid-glass-pill>
+      <liquid-glass-pill v-for="card in unusedCustom" :key="card.id">
+        <v-chip
+          class="ma-1"
+          color="primary"
+          variant="tonal"
+          @click="handleCardClick('dialog', 'custom-' + card.id)"
+        >
+          <v-icon start size="small">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
+          {{ card.title }}
+        </v-chip>
+      </liquid-glass-pill>
     </div>
 
     <template v-else-if="emptySubjectDisplay === 'button'">
       <div class="empty-buttons">
-        <v-btn
-          v-for="subject in unusedSubjects"
-          :key="subject.id"
-          class="empty-btn"
-          rounded="pill"
-          variant="tonal"
-          @click="handleCardClick('dialog', subject.id)"
-        >
-          <v-icon start size="18">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
-          {{ subject.name }}
-        </v-btn>
-        <v-btn
-          v-for="card in unusedCustom"
-          :key="card.id"
-          class="empty-btn"
-          rounded="pill"
-          variant="tonal"
-          @click="handleCardClick('dialog', 'custom-' + card.id)"
-        >
-          <v-icon start size="18">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
-          {{ card.title }}
-        </v-btn>
+        <liquid-glass-pill v-for="subject in unusedSubjects" :key="subject.id">
+          <v-btn class="empty-btn" rounded="pill" variant="tonal" @click="handleCardClick('dialog', subject.id)">
+            <v-icon start size="18">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
+            {{ subject.name }}
+          </v-btn>
+        </liquid-glass-pill>
+        <liquid-glass-pill v-for="card in unusedCustom" :key="card.id">
+          <v-btn class="empty-btn" rounded="pill" variant="tonal" @click="handleCardClick('dialog', 'custom-' + card.id)">
+            <v-icon start size="18">{{ isReadOnly ? 'mdi-cancel' : 'mdi-plus' }}</v-icon>
+            {{ card.title }}
+          </v-btn>
+        </liquid-glass-pill>
       </div>
     </template>
 
@@ -153,6 +145,7 @@
           rounded="xl"
           @click="handleCardClick('dialog', 'custom-' + card.id)"
         >
+          <liquid-glass />
           <v-card-title class="sf-subject-title sf-subject-title--empty">{{ card.title }}</v-card-title>
           <v-card-text class="text-center">
             <template v-if="isReadOnly">
@@ -173,6 +166,7 @@
           rounded="xl"
           @click="handleCardClick('dialog', subject.id)"
         >
+          <liquid-glass />
           <v-card-title class="sf-subject-title sf-subject-title--empty">{{ subject.name }}</v-card-title>
           <v-card-text class="text-center">
             <template v-if="isReadOnly">
@@ -197,6 +191,8 @@ import type { ExamItem } from '@starflame/shared'
 import TimeCard from '@/components/TimeCard.vue'
 import HitokotoCard from '@/components/HitokotoCard.vue'
 import ConciseExamCard from '@/components/home/ConciseExamCard.vue'
+import LiquidGlass from '@/components/ui/LiquidGlass.vue'
+import LiquidGlassPill from '@/components/ui/LiquidGlassPill.vue'
 
 import type { GridItem } from '@/types/board'
 import type { BellOffsetConfig } from '@/lib/bellOffset'

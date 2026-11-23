@@ -5,6 +5,9 @@
    ============================================================ */
 
 :root {
+  /* 让 light-dark() 能正确解析：液态玻璃卡片（GlassSurface）用它在亮暗两套描边/底色间切换 */
+  color-scheme: light;
+
   /* 品牌暖色 */
   --brand-1: #ff8a1f;
   --brand-2: #f4511e;
@@ -85,6 +88,8 @@
 }
 
 .v-theme--dark {
+  color-scheme: dark;
+
   --brand-soft: #3a2a1e;
 
   --bg-page: #16130f;

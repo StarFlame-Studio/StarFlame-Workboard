@@ -3,6 +3,10 @@
 @use './tokens';
 @use './base';
 @use './skeleton';
+// 玻璃主题放在最后：需要盖掉 base.css 里 .v-card / .v-btn 的底色与阴影
+@use './glass';
+// 液态玻璃同理，且要压在毛玻璃之后（两个主题互斥，只是留个明确的顺序）
+@use './liquid-glass';
 
 html,
 body,
