@@ -12,6 +12,19 @@
 <script lang="ts">
 import { isRef, type CSSProperties, type Ref } from 'vue';
 
+/**
+ * 位移贴图缓存（本组件相对 vue-bits 原版唯一的性能改动，模块级 = 所有实例共享）。
+ *
+ * 原版每次尺寸/参数变化都会重新拼一整段 SVG 字符串、encodeURIComponent 成 data URL，
+ * 再塞给 feImage —— 看板一屏十几张卡片，尺寸其实只有寥寥几种，每个实例各算一遍纯属浪费。
+ * 这里按「尺寸 + 会影响贴图内容的参数」做键，同键直接复用同一张 data URL。
+ *
+ * 安全性：data URL 是一个独立 SVG 文档，里面的 id（red-grad-xxx / soft-xxx）只在
+ * 该文档内需要唯一，不同实例共用同一张图不会互相覆盖。
+ */
+const DISPLACEMENT_CACHE_LIMIT = 64;
+const displacementCache = new Map<string, string>();
+
 export type GlassSurfaceChannel = 'R' | 'G' | 'B';
 
 export type GlassSurfaceRenderer = 'auto' | 'svg' | 'webgl';
@@ -398,9 +411,7 @@ const art = shallowRef<ShapeArt | null>(null);
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const feImageRef = ref<SVGFEImageElement | null>(null);
-const redChannelRef = ref<SVGFEDisplacementMapElement | null>(null);
-const greenChannelRef = ref<SVGFEDisplacementMapElement | null>(null);
-const blueChannelRef = ref<SVGFEDisplacementMapElement | null>(null);
+const displacementRef = ref<SVGFEDisplacementMapElement | null>(null);
 const gaussianBlurRef = ref<SVGFEGaussianBlurElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
@@ -410,9 +421,18 @@ let mapUrl = '';
 let resizeObserver: ResizeObserver | null = null;
 
 const generateDisplacementMap = () => {
-  const rect = containerRef.value?.getBoundingClientRect();
-  const actualWidth = rect?.width || 400;
-  const actualHeight = rect?.height || 200;
+  const element = containerRef.value;
+  // 用 offsetWidth/offsetHeight（布局像素、整数）而不是 getBoundingClientRect()：
+  // · 后者会强制同步布局，一屏十几张卡片就是十几次；
+  // · 后者返回的是缩放后的小数（html 上还有 zoom:1.15），每个实例都不同，
+  //   按尺寸做键的贴图缓存会一个都命中不了。
+  // 贴图只用相对比例（feImage 是 preserveAspectRatio="none" 铺满滤镜区），
+  // 用布局像素和用缩放像素画出来完全一样。
+  const actualWidth = Math.max(1, Math.round(element?.offsetWidth || 400));
+  const actualHeight = Math.max(1, Math.round(element?.offsetHeight || 200));
+  const cacheKey = `${actualWidth}x${actualHeight}|${props.borderRadius}|${props.borderWidth}|${props.brightness}|${props.opacity}|${props.blur}|${props.mixBlendMode}`;
+  const cachedMap = displacementCache.get(cacheKey);
+  if (cachedMap) return cachedMap;
   const edgeSize = Math.min(actualWidth, actualHeight) * (props.borderWidth * 0.5);
 
   const svgContent = `
@@ -437,27 +457,38 @@ const generateDisplacementMap = () => {
       </svg>
     `;
 
-  return `data:image/svg+xml,${encodeURIComponent(svgContent)}`;
+  const url = `data:image/svg+xml,${encodeURIComponent(svgContent)}`;
+  if (displacementCache.size >= DISPLACEMENT_CACHE_LIMIT) {
+    const oldest = displacementCache.keys().next();
+    if (!oldest.done) displacementCache.delete(oldest.value);
+  }
+  displacementCache.set(cacheKey, url);
+  return url;
 };
 
 const updateDisplacementMap = () => {
-  mapUrl = shapeMap || generateDisplacementMap();
+  const next = shapeMap || generateDisplacementMap();
+  // 贴图没变就不要重设 href：feImage 换 href 会重新解码整张图，
+  // 而 watch 会因为无关参数（比如位移倍率）频繁触发这里。
+  if (next === mapUrl) return;
+  mapUrl = next;
   feImageRef.value?.setAttribute('href', mapUrl);
 };
 
 const updateFilter = () => {
   updateDisplacementMap();
-  [
-    { el: redChannelRef.value, offset: props.redOffset },
-    { el: greenChannelRef.value, offset: props.greenOffset },
-    { el: blueChannelRef.value, offset: props.blueOffset }
-  ].forEach(({ el, offset }) => {
-    if (el) {
-      el.setAttribute('scale', (props.distortionScale + offset).toString());
-      el.setAttribute('xChannelSelector', props.xChannel);
-      el.setAttribute('yChannelSelector', props.yChannel);
-    }
-  });
+  // 原来这里是红/绿/蓝三条位移链（各一次 feDisplacementMap + feColorMatrix 分离通道 +
+  // 两次 feBlend screen 合回），能做出很细的彩色色散边，但滤镜链一共 8 个节点，
+  // 一屏十几张卡片时实测把看板拖到个位数帧率。现在合并成一次位移：
+  // 保留「卡片边缘把背景掰弯」这个主要观感，节点数降到 2 个；
+  // 设置里的红/绿/蓝通道偏移改为取平均后叠加到位移倍率上，仍然能调节折射强弱。
+  const offset = (props.redOffset + props.greenOffset + props.blueOffset) / 3;
+  const el = displacementRef.value;
+  if (el) {
+    el.setAttribute('scale', (props.distortionScale + offset).toString());
+    el.setAttribute('xChannelSelector', props.xChannel);
+    el.setAttribute('yChannelSelector', props.yChannel);
+  }
 
   gaussianBlurRef.value?.setAttribute('stdDeviation', props.displace.toString());
 };
@@ -814,6 +845,17 @@ watch(
   { flush: 'post' }
 );
 
+// 折射模式要等 supportsSVGFilters() 探测完才确定，而 SVG 节点是 v-if="refractive"
+// 渲染的 —— 首帧 updateFilter() 跑的时候 feImageRef 还是 null，href 就丢了。
+// 这里在折射层真正出现后再补一次。
+watch(
+  refractive,
+  (on) => {
+    if (on) updateFilter();
+  },
+  { flush: 'post' }
+);
+
 onMounted(() => {
   updateFilter();
   if (containerRef.value) {
@@ -868,47 +910,12 @@ const modeClass = computed(() =>
 
 <template>
   <div ref="containerRef" :class="`glass-surface ${modeClass} ${className}`" :style="containerStyle">
-    <svg class="glass-surface__filter" xmlns="http://www.w3.org/2000/svg">
+    <svg v-if="refractive" class="glass-surface__filter" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <filter :id="filterId" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
           <feImage ref="feImageRef" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
-
-          <feDisplacementMap ref="redChannelRef" in="SourceGraphic" in2="map" id="redchannel" result="dispRed" />
-          <feColorMatrix
-            in="dispRed"
-            type="matrix"
-            values="1 0 0 0 0
-                    0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 0 1 0"
-            result="red"
-          />
-
-          <feDisplacementMap ref="greenChannelRef" in="SourceGraphic" in2="map" id="greenchannel" result="dispGreen" />
-          <feColorMatrix
-            in="dispGreen"
-            type="matrix"
-            values="0 0 0 0 0
-                    0 1 0 0 0
-                    0 0 0 0 0
-                    0 0 0 1 0"
-            result="green"
-          />
-
-          <feDisplacementMap ref="blueChannelRef" in="SourceGraphic" in2="map" id="bluechannel" result="dispBlue" />
-          <feColorMatrix
-            in="dispBlue"
-            type="matrix"
-            values="0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 1 0 0
-                    0 0 0 1 0"
-            result="blue"
-          />
-
-          <feBlend in="red" in2="green" mode="screen" result="rg" />
-          <feBlend in="rg" in2="blue" mode="screen" result="output" />
-          <feGaussianBlur ref="gaussianBlurRef" in="output" stdDeviation="0.7" />
+          <feDisplacementMap ref="displacementRef" in="SourceGraphic" in2="map" result="displaced" />
+          <feGaussianBlur ref="gaussianBlurRef" in="displaced" stdDeviation="0.7" />
         </filter>
       </defs>
     </svg>

@@ -530,6 +530,7 @@ import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHan
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
 import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
 import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
+import { startGlassScrollDegrade, stopGlassScrollDegrade } from '@/lib/glassScroll'
 
 import { navigate, type PageName } from '@/lib/nav'
 import { useSessionStore } from '@/stores/session'
@@ -893,8 +894,12 @@ const settings = computed(() => (board.data?.settings ?? {}) as Record<string, u
 // 液态玻璃还额外把 liquid.* 那组参数翻译成 CSS 变量 + 折射层 props。
 // 设置页改完返回看板时，bootstrap 会带回新的 settings，这里随之切换。
 watchEffect(() => {
-  applyCardTheme(cardThemeSetting(settings.value))
+  const mode = cardThemeSetting(settings.value)
+  applyCardTheme(mode)
   applyLiquidGlassConfig(readLiquidGlassConfig(settings.value))
+  // 玻璃/液态玻璃才需要滚动降级：滚动期间临时关掉折射与背景模糊，停下再恢复（见 lib/glassScroll.ts）
+  if (mode === 'liquid' || mode === 'glass') startGlassScrollDegrade()
+  else stopGlassScrollDegrade()
 })
 
 // 作息时间表 -> 桌面主进程：上课时段暂停静默更新（网页端为空操作）
@@ -1642,6 +1647,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopGlassScrollDegrade()
   if (refreshTimer) window.clearInterval(refreshTimer)
   stopRealtime?.()
   stopStatus?.()
