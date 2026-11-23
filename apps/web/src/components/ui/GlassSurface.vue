@@ -6,8 +6,11 @@
   只改了文件位置，逻辑与样式一行未动。
 
   启用方式见 components/ui/LiquidGlass.vue（看板卡片 / 胶囊按钮的那层折射）。
-  本项目额外做了一处全局配合：styles/tokens.css 给 :root 和 .v-theme--dark
-  补了 color-scheme，否则组件里的 light-dark() 在暗色主题下永远走亮色分支。
+  本项目额外做了两处改动（渲染结果与 vue-bits 原版一致）：
+  · styles/tokens.css 给 :root 和 .v-theme--dark 补了 color-scheme，否则组件里的
+    light-dark() 在暗色主题下永远走亮色分支；
+  · 滤镜定义不再每个实例各存一份，交给 lib/glassFilter.ts 的共享池按参数复用；
+    尺寸观察也交给 lib/sharedObservers.ts 的单例 ResizeObserver。
 -->
 <script lang="ts">
 import { isRef, type CSSProperties, type Ref } from 'vue';
@@ -369,6 +372,14 @@ const bendShape = (trace: ShapeTrace, edge: number, softness: number, calm: numb
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue';
+import {
+  acquireGlassFilter,
+  glassFilterSignature,
+  releaseGlassFilter,
+  supportsGlassSvgFilter,
+  type GlassFilterSpec
+} from '@/lib/glassFilter';
+import { observeResize, unobserveResize } from '@/lib/sharedObservers';
 
 const props = withDefaults(defineProps<GlassSurfaceProps>(), {
   width: 200,
@@ -397,7 +408,6 @@ const props = withDefaults(defineProps<GlassSurfaceProps>(), {
 });
 
 const uniqueId = (useId() || 'glass').replace(/:/g, '-');
-const filterId = `glass-filter-${uniqueId}`;
 const redGradId = `red-grad-${uniqueId}`;
 const blueGradId = `blue-grad-${uniqueId}`;
 const softId = `soft-${uniqueId}`;
@@ -410,17 +420,16 @@ const loaded = shallowRef<{ src: string; image: HTMLImageElement | null }>({ src
 const art = shallowRef<ShapeArt | null>(null);
 
 const containerRef = ref<HTMLDivElement | null>(null);
-const feImageRef = ref<SVGFEImageElement | null>(null);
-const displacementRef = ref<SVGFEDisplacementMapElement | null>(null);
-const gaussianBlurRef = ref<SVGFEGaussianBlurElement | null>(null);
+/** 共享滤镜的 id（lib/glassFilter.ts 按参数分配）；空字符串表示暂时没有滤镜 */
+const sharedFilterId = ref('');
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
 let trace: CachedTrace | null = null;
 let shapeMap = '';
 let mapUrl = '';
-let resizeObserver: ResizeObserver | null = null;
+let filterSignature = '';
 
-const generateDisplacementMap = () => {
+const generateDisplacementMap = (): { key: string; url: string } => {
   const element = containerRef.value;
   // 用 offsetWidth/offsetHeight（布局像素、整数）而不是 getBoundingClientRect()：
   // · 后者会强制同步布局，一屏十几张卡片就是十几次；
@@ -432,7 +441,7 @@ const generateDisplacementMap = () => {
   const actualHeight = Math.max(1, Math.round(element?.offsetHeight || 200));
   const cacheKey = `${actualWidth}x${actualHeight}|${props.borderRadius}|${props.borderWidth}|${props.brightness}|${props.opacity}|${props.blur}|${props.mixBlendMode}`;
   const cachedMap = displacementCache.get(cacheKey);
-  if (cachedMap) return cachedMap;
+  if (cachedMap) return { key: cacheKey, url: cachedMap };
   const edgeSize = Math.min(actualWidth, actualHeight) * (props.borderWidth * 0.5);
 
   const svgContent = `
@@ -463,34 +472,66 @@ const generateDisplacementMap = () => {
     if (!oldest.done) displacementCache.delete(oldest.value);
   }
   displacementCache.set(cacheKey, url);
-  return url;
+  return { key: cacheKey, url };
 };
 
-const updateDisplacementMap = () => {
-  const next = shapeMap || generateDisplacementMap();
-  // 贴图没变就不要重设 href：feImage 换 href 会重新解码整张图，
-  // 而 watch 会因为无关参数（比如位移倍率）频繁触发这里。
-  if (next === mapUrl) return;
-  mapUrl = next;
-  feImageRef.value?.setAttribute('href', mapUrl);
+/**
+ * 位移贴图缓存键：shape 贴图是一整张 data URL（可能几百 KB），直接拿它当键会
+ * 在每次同步滤镜时拼出巨大的字符串，所以只取长度 + FNV-1a 散列。
+ * 形状路径在本项目里没有使用（没有卡片传 shape），这里只是不留下性能坑。
+ */
+const shapeMapKey = (url: string): string => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < url.length; i++) {
+    hash ^= url.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `shape:${url.length}:${(hash >>> 0).toString(36)}`;
 };
 
+/** 当前实例需要的位移贴图（shape 优先，否则按尺寸生成并缓存） */
+const currentDisplacementMap = (): { key: string; url: string } =>
+  shapeMap ? { key: shapeMapKey(shapeMap), url: shapeMap } : generateDisplacementMap();
+
+/**
+ * 同步共享滤镜。
+ *
+ * 原来每次参数变化都要往自己那份 <feImage>/<feDisplacementMap>/<feGaussianBlur>
+ * 上 setAttribute，一屏十几张卡片就是十几次 DOM 写入。现在滤镜交给
+ * lib/glassFilter.ts 的共享池：参数签名没变就什么都不用做，变了就换一个 id
+ * （只改 --filter-id 一个 CSS 变量），换下来的 id 归还给池子。
+ */
 const updateFilter = () => {
-  updateDisplacementMap();
+  // Safari / Firefox 不支持 url(#…) 形式的 backdrop-filter，会退回毛玻璃质感，
+  // 这时既用不上滤镜也用不上位移贴图，直接跳过（不必为每张卡片生成 SVG 贴图）；
+  // 只有走 WebGL 路径（传了 backdrop）时才需要贴图地址，仍然生成。
+  if (!svgSupported.value) {
+    if (webgl.value) mapUrl = currentDisplacementMap().url;
+    return;
+  }
+  const map = currentDisplacementMap();
+  mapUrl = map.url;
   // 原来这里是红/绿/蓝三条位移链（各一次 feDisplacementMap + feColorMatrix 分离通道 +
   // 两次 feBlend screen 合回），能做出很细的彩色色散边，但滤镜链一共 8 个节点，
   // 一屏十几张卡片时实测把看板拖到个位数帧率。现在合并成一次位移：
   // 保留「卡片边缘把背景掰弯」这个主要观感，节点数降到 2 个；
   // 设置里的红/绿/蓝通道偏移改为取平均后叠加到位移倍率上，仍然能调节折射强弱。
   const offset = (props.redOffset + props.greenOffset + props.blueOffset) / 3;
-  const el = displacementRef.value;
-  if (el) {
-    el.setAttribute('scale', (props.distortionScale + offset).toString());
-    el.setAttribute('xChannelSelector', props.xChannel);
-    el.setAttribute('yChannelSelector', props.yChannel);
-  }
-
-  gaussianBlurRef.value?.setAttribute('stdDeviation', props.displace.toString());
+  const spec: GlassFilterSpec = {
+    mapKey: map.key,
+    mapUrl: map.url,
+    scale: props.distortionScale + offset,
+    xChannel: props.xChannel,
+    yChannel: props.yChannel,
+    displace: props.displace
+  };
+  const signature = glassFilterSignature(spec);
+  if (signature === filterSignature && sharedFilterId.value) return;
+  const nextId = acquireGlassFilter(spec);
+  if (!nextId) return;
+  releaseGlassFilter(sharedFilterId.value);
+  sharedFilterId.value = nextId;
+  filterSignature = signature;
 };
 
 const shapeImage = computed(() => (props.shape && loaded.value.src === props.shape ? loaded.value.image : null));
@@ -529,29 +570,13 @@ const updateShape = () => {
     }
   }
   shapeMap = map;
-  updateDisplacementMap();
+  updateFilter();
   if (props.shape && current)
     art.value = { src: props.shape, box: current.box, line: current.line, glow: current.glow };
   else if (props.shape && loaded.value.src === props.shape) art.value = { src: props.shape, failed: true };
 };
 
-const supportsSVGFilters = () => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return false;
-  }
 
-  const isWebkit = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-  const isFirefox = /Firefox/.test(navigator.userAgent);
-
-  if (isWebkit || isFirefox) {
-    return false;
-  }
-
-  const div = document.createElement('div');
-  div.style.backdropFilter = `url(#${filterId})`;
-
-  return div.style.backdropFilter !== '';
-};
 
 watch(
   () => [
@@ -845,34 +870,27 @@ watch(
   { flush: 'post' }
 );
 
-// 折射模式要等 supportsSVGFilters() 探测完才确定，而 SVG 节点是 v-if="refractive"
-// 渲染的 —— 首帧 updateFilter() 跑的时候 feImageRef 还是 null，href 就丢了。
-// 这里在折射层真正出现后再补一次。
-watch(
-  refractive,
-  (on) => {
-    if (on) updateFilter();
-  },
-  { flush: 'post' }
-);
-
+// 尺寸观察用 lib/sharedObservers.ts 的模块级单例 ResizeObserver：
+// 原来每个实例各 new 一个，一屏十几张卡片就是十几个观察器做同一件事。
 onMounted(() => {
+  svgSupported.value = supportsGlassSvgFilter();
+  checked.value = true;
   updateFilter();
-  if (containerRef.value) {
-    resizeObserver = new ResizeObserver(() => {
-      const element = containerRef.value;
-      if (element) boxSize.value = `${element.offsetWidth}x${element.offsetHeight}`;
+  const element = containerRef.value;
+  if (element) {
+    observeResize(element, () => {
+      boxSize.value = `${element.offsetWidth}x${element.offsetHeight}`;
     });
-    resizeObserver.observe(containerRef.value);
   }
   updateShape();
-  svgSupported.value = supportsSVGFilters();
-  checked.value = true;
 });
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect();
-  resizeObserver = null;
+  const element = containerRef.value;
+  if (element) unobserveResize(element);
+  releaseGlassFilter(sharedFilterId.value);
+  sharedFilterId.value = '';
+  filterSignature = '';
 });
 
 const outline = computed(() => {
@@ -898,7 +916,7 @@ const containerStyle = computed(() => {
     borderRadius: `${props.borderRadius}px`,
     '--glass-frost': props.backgroundOpacity,
     '--glass-saturation': props.saturation,
-    '--filter-id': `url(#${filterId})`,
+    '--filter-id': sharedFilterId.value ? `url(#${sharedFilterId.value})` : 'blur(0px)',
     ...shapeStyle
   } as CSSProperties;
 });
@@ -910,15 +928,6 @@ const modeClass = computed(() =>
 
 <template>
   <div ref="containerRef" :class="`glass-surface ${modeClass} ${className}`" :style="containerStyle">
-    <svg v-if="refractive" class="glass-surface__filter" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <filter :id="filterId" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
-          <feImage ref="feImageRef" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
-          <feDisplacementMap ref="displacementRef" in="SourceGraphic" in2="map" result="displaced" />
-          <feGaussianBlur ref="gaussianBlurRef" in="displaced" stdDeviation="0.7" />
-        </filter>
-      </defs>
-    </svg>
 
     <canvas v-if="webgl" ref="canvasRef" class="glass-surface__canvas" aria-hidden="true" />
     <span
@@ -958,15 +967,6 @@ const modeClass = computed(() =>
   transition: opacity 0.26s ease-out;
 }
 
-.glass-surface__filter {
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  z-index: -1;
-}
 
 .glass-surface__content {
   width: 100%;
@@ -982,7 +982,7 @@ const modeClass = computed(() =>
 
 .glass-surface--svg {
   background: light-dark(hsl(0 0% 100% / var(--glass-frost, 0)), hsl(0 0% 0% / var(--glass-frost, 0)));
-  backdrop-filter: var(--filter-id, url(#glass-filter)) saturate(var(--glass-saturation, 1));
+  backdrop-filter: var(--filter-id, blur(0px)) saturate(var(--glass-saturation, 1));
   box-shadow:
     0 0 2px 1px light-dark(color-mix(in oklch, black, transparent 85%), color-mix(in oklch, white, transparent 65%))
       inset,
