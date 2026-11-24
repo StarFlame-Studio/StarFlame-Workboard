@@ -107,7 +107,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { getData, patchData } from '@/lib/api'
+import { getData } from '@/lib/api'
+import { mergeLocalSettings, saveSettingsPatch } from '@/lib/settingsWrite'
 import { navigate, type PageName } from '@/lib/nav'
 import FormSkeleton from '@/components/skeleton/FormSkeleton.vue'
 
@@ -212,7 +213,7 @@ async function load(): Promise<void> {
     subjects.value = boardResult.subjects
     currentSubject.value = boardResult.subjects[0]?.name ?? '语文'
 
-    const settings = meResult.settings ?? {}
+    const settings = mergeLocalSettings(meResult.settings)
     const tpl = (settings.homeworkTemplate ?? null) as TemplateState | null
     if (tpl) {
       if (tpl.actions?.length) actionsText.value = tpl.actions.join(',')
@@ -274,18 +275,16 @@ async function save(): Promise<void> {
       if (pages.length > 0) commonMap[name] = pages
     }
 
-    await patchData('/board/settings', {
-      settings: {
-        homeworkTemplate: {
-          subjects: subjectsOut,
-          commonSubject: { books: commonMap },
-          actions: actionsText.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean),
-        },
-        'edit.autoSavePromptText': autoSaveText.value,
-        'edit.manualSavePromptText': manualSaveText.value,
+    const savedToCloud = await saveSettingsPatch({
+      homeworkTemplate: {
+        subjects: subjectsOut,
+        commonSubject: { books: commonMap },
+        actions: actionsText.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean),
       },
+      'edit.autoSavePromptText': autoSaveText.value,
+      'edit.manualSavePromptText': manualSaveText.value,
     })
-    notify('已保存')
+    notify(savedToCloud ? '已保存' : '已保存在本机（只有一体机会同步到班级云端）')
   } catch (error) {
     notify(error instanceof Error ? error.message : '保存失败', 'error')
   } finally {

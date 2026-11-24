@@ -32,17 +32,25 @@ function installLogoutHandler(): void {
  * 未登录直接跳登录页，不做前端路由拦截。
  */
 const ADMIN_ONLY_ROLES = ['owner', 'admin']
+const OWNER_ONLY_PAGES = ['users', 'audit']
+const TEACHER_PAGES = ['classes']
 
 export function mountAdminPage(page: Component, active: string, title: string): void {
   if (!hasToken()) {
     window.location.replace(LOGIN_PAGE)
     return
   }
-  // 教师账号没有概览页权限，直接落到班级页
+  // 页面级准入：教师只能进班级页；用户与审计只有超级管理员能进；其余管理页 owner/admin 可用
   const cachedRole = localStorage.getItem('sf.userRole') ?? ''
-  if (active === 'overview' && cachedRole !== '' && !ADMIN_ONLY_ROLES.includes(cachedRole)) {
-    window.location.replace('/classes')
-    return
+  if (cachedRole !== '') {
+    if (cachedRole === 'teacher' && !TEACHER_PAGES.includes(active)) {
+      window.location.replace('/classes')
+      return
+    }
+    if (OWNER_ONLY_PAGES.includes(active) && cachedRole !== 'owner') {
+      window.location.replace(ADMIN_ONLY_ROLES.includes(cachedRole) ? '/' : '/classes')
+      return
+    }
   }
   document.title = '星焰作业板 · ' + title + ' · 管理后台'
   installLogoutHandler()

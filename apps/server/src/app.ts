@@ -36,7 +36,7 @@ export function createApp() {
     }),
   )
 
-  // 5MB 本地背景图转成 data URL 约 6.8MB，留出余量
+  // 背景图已改为本机设置（不上传），但旧版本客户端仍可能把 5MB 壁纸 data URL（约 6.8MB）随设置提交，留出余量
   app.use(express.json({ limit: '8mb' }))
   app.use(express.urlencoded({ extended: false }))
 

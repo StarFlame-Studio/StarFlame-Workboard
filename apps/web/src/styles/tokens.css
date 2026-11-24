@@ -53,6 +53,9 @@
   --grad-4: linear-gradient(145deg, #ffcf5c 0%, #ffd97a 55%, #ffeeb8 100%);
   --grad-hero: linear-gradient(115deg, #ff6a1f 0%, #ff8f4d 45%, #ffc98f 100%);
   --grad-brand: linear-gradient(100deg, #ff8a1f 0%, #f4511e 100%);
+  /* 按钮专用的品牌渐变：两端都保证白字对比度 ≥ 4.8（WCAG AA），
+     原来的 #ff8a1f→#f4511e 配白字只有 2.4–3.5，按钮文字发灰看不清。 */
+  --grad-brand-btn: linear-gradient(100deg, #cb430d 0%, #b8370e 100%);
   --grad-brand-text: linear-gradient(100deg, #f2661a 0%, #d63f0c 100%);
   --grad-avatar: linear-gradient(150deg, #ff7a1a 0%, #f4511e 100%);
 

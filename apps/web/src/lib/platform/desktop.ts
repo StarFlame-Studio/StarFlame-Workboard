@@ -36,7 +36,10 @@ export interface SfRollbackResult {
 
 export interface SfAppInfo {
   channel: string
+  /** 安装包真实版本（主进程 app.getVersion()） */
   version: string
+  /** 编译进主进程的数字版本号（APP_VERSION_CODE），旧版主进程可能没有该字段 */
+  versionCode?: number
   electron: string
   chrome: string
   node: string

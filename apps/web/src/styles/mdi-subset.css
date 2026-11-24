@@ -132,8 +132,14 @@
 .mdi-blur::before {
   content: "\F00B5";
 }
+.mdi-blur-linear::before {
+  content: "\F00B6";
+}
 .mdi-blur-off::before {
   content: "\F00B7";
+}
+.mdi-blur-radial::before {
+  content: "\F00B8";
 }
 .mdi-book::before {
   content: "\F00BA";
@@ -156,8 +162,20 @@
 .mdi-bookmark-outline::before {
   content: "\F00C3";
 }
+.mdi-border-color::before {
+  content: "\F00C9";
+}
+.mdi-border-outside::before {
+  content: "\F00CE";
+}
+.mdi-box-shadow::before {
+  content: "\F0637";
+}
 .mdi-brightness-2::before {
   content: "\F00DB";
+}
+.mdi-brightness-6::before {
+  content: "\F00DF";
 }
 .mdi-brightness-7::before {
   content: "\F00E0";
@@ -342,9 +360,6 @@
 .mdi-delete-outline::before {
   content: "\F09E7";
 }
-.mdi-developer-board::before {
-  content: "\F0697";
-}
 .mdi-dice-multiple::before {
   content: "\F076E";
 }
@@ -489,6 +504,9 @@
 .mdi-lan-connect::before {
   content: "\F0318";
 }
+.mdi-layers-outline::before {
+  content: "\F09FE";
+}
 .mdi-leaf::before {
   content: "\F032A";
 }
@@ -509,6 +527,9 @@
 }
 .mdi-magnify::before {
   content: "\F0349";
+}
+.mdi-magnify-scan::before {
+  content: "\F1276";
 }
 .mdi-menu::before {
   content: "\F035C";
@@ -546,9 +567,6 @@
 .mdi-monitor-lock::before {
   content: "\F0DDB";
 }
-.mdi-monitor-shimmer::before {
-  content: "\F1104";
-}
 .mdi-moon-waning-crescent::before {
   content: "\F0F65";
 }
@@ -566,6 +584,9 @@
 }
 .mdi-numeric-1-box::before {
   content: "\F03A4";
+}
+.mdi-opacity::before {
+  content: "\F05CC";
 }
 .mdi-open-in-new::before {
   content: "\F03CC";
@@ -585,6 +606,12 @@
 .mdi-palette::before {
   content: "\F03D8";
 }
+.mdi-palette-outline::before {
+  content: "\F0E0C";
+}
+.mdi-palette-swatch-outline::before {
+  content: "\F135C";
+}
 .mdi-paperclip::before {
   content: "\F03E2";
 }
@@ -600,6 +627,9 @@
 .mdi-pencil-outline::before {
   content: "\F0CB6";
 }
+.mdi-pill::before {
+  content: "\F0402";
+}
 .mdi-play::before {
   content: "\F040A";
 }
@@ -614,6 +644,9 @@
 }
 .mdi-radiobox-marked::before {
   content: "\F043E";
+}
+.mdi-record-circle-outline::before {
+  content: "\F0EC3";
 }
 .mdi-refresh::before {
   content: "\F0450";
@@ -647,9 +680,6 @@
 }
 .mdi-shield-alert-outline::before {
   content: "\F0ECD";
-}
-.mdi-shield-check::before {
-  content: "\F0565";
 }
 .mdi-shield-key::before {
   content: "\F0BC4";
@@ -743,6 +773,9 @@
 }
 .mdi-weather-sunny::before {
   content: "\F0599";
+}
+.mdi-web::before {
+  content: "\F059F";
 }
 .mdi-white-balance-sunny::before {
   content: "\F05A8";

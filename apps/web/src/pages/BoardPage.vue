@@ -564,7 +564,8 @@ import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSou
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
 import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
-import { localSettings } from '@/lib/localSettings'
+import { localSettings, writeLocalSetting } from '@/lib/localSettings'
+import { isSmallDeviceMode, settingsCloudSyncEnabled } from '@/lib/settingsScope'
 import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
 import { startGlassScrollDegrade, stopGlassScrollDegrade } from '@/lib/glassScroll'
 
@@ -616,6 +617,7 @@ import {
   type TutorialStep,
 } from '@/lib/tutorial'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
+import { resolveAutoBoardDate, type AutoDateResult } from '@/lib/boardAutoDate'
 import { deviceMode, isMobileUi } from '@/lib/deviceMode'
 import { isDesktop, toggleFullscreen as platformToggleFullscreen } from '@/lib/platform'
 import { readBellOffsetConfig } from '@/lib/bellOffset'
@@ -642,6 +644,15 @@ function openThemeSettings(): void {
 const board = useBoardStore()
 
 const editorOpen = ref(false)
+/**
+ * 教程第二步（布置作业）等的是「编辑窗口关掉」这个信号，但窗口并不只有保存成功才会关：
+ * 「内容没改动直接点保存」会静默关闭（编辑窗口此时不发 save 事件），点空白处 / 关闭按钮 / Esc 也会关。
+ * 这些情况以前永远等不到 close-homework-editor，教程就卡在第二步不动了。
+ * 这里统一兜底：编辑窗口从打开变成关闭，就认为这一步做完（浮层只在当前步骤是这个动作时才推进）。
+ */
+watch(editorOpen, (open, wasOpen) => {
+  if (wasOpen && !open) signalTutorial('close-homework-editor')
+})
 const attDialogOpen = ref(false)
 const randomOpen = ref(false)
 const notifyOpen = ref(false)
@@ -961,7 +972,24 @@ const randomPickerEnabled = computed(
 )
 const studentNames = computed(() => board.students.map((item) => item.name))
 
-const settings = computed(() => (board.data?.settings ?? {}) as Record<string, unknown>)
+// 云端设置 + 本机设置合并：一体机直接以云端为准（本机只覆盖主题/背景等 local 项）；
+// 手机 / 平板 / 老师电脑不参与云端同步，本机改过的项优先，云端值只作初始底稿。
+const settings = computed(() => {
+  const base = (board.data?.settings ?? {}) as Record<string, unknown>
+  if (settingsCloudSyncEnabled.value) return base
+  return { ...base, ...localSettings.value }
+})
+
+// ---------- 自动日期切换（状态） ----------
+// 规则见 lib/boardAutoDate.ts：第一节课开始前 / 当天不上课时显示最近有作业的一天，
+// 第一节课开始后切回当天。手动翻日期后暂停，等自动目标本身变化（如第一节课开始）再接管。
+const homeworkDates = ref<string[]>([])
+const autoDateSuspended = ref(false)
+let autoDateTarget = ''
+let autoDateTimer: number | undefined
+let autoDateFetchedAt = 0
+const AUTO_DATE_INTERVAL = 30 * 1000
+const HOMEWORK_DATES_TTL = 10 * 60 * 1000
 
 // 卡片主题（默认 / 玻璃 / 液态玻璃）：只往 <html> 挂类名，材质全部由 styles/*.scss 承担。
 // 液态玻璃还额外把 liquid.* 那组参数翻译成 CSS 变量 + 折射层 props。
@@ -979,7 +1007,11 @@ watchEffect(() => {
 // 作息时间表 -> 桌面主进程：上课时段暂停静默更新（网页端为空操作）
 watch(
   settings,
-  (value) => syncUpdateSchedule(value),
+  (value) => {
+    syncUpdateSchedule(value)
+    // 作息 / 课节改动会改变「第一节课」的时间点，自动日期要立刻重算
+    void evaluateAutoDate()
+  },
   { deep: true, immediate: true },
 )
 
@@ -990,11 +1022,16 @@ watch(
  * - 其他情况按视口宽度（已考虑桌面端 15% 缩放）判断。
  */
 function syncIsMobile(): void {
-  const forced = settings.value['display.forceDesktopMode'] === true
+  // 手机 / 平板模式下一律强制关闭一体机模式（包括班级设置里的「强制一体机 UI」）
+  const forced = settings.value['display.forceDesktopMode'] === true && !isSmallDeviceMode.value
   isMobile.value = isMobileUi.value && !forced
 }
 
-watch([isMobileUi, () => settings.value['display.forceDesktopMode']], syncIsMobile, { immediate: true })
+watch(
+  [isMobileUi, isSmallDeviceMode, () => settings.value['display.forceDesktopMode']],
+  syncIsMobile,
+  { immediate: true },
+)
 const clock12h = computed(() => Boolean(settings.value.clock12h))
 const emptySubjectDisplay = computed(() =>
   stringSetting(settings.value, 'display.emptySubjectDisplay', 'button'),
@@ -1317,6 +1354,14 @@ async function onExamDeleted(): Promise<void> {
 
 async function saveExamCardIds(ids: string[]): Promise<void> {
   try {
+    // 考试卡选择是看板显示设置：非一体机只存本机，不覆盖班级大屏
+    if (!settingsCloudSyncEnabled.value) {
+      writeLocalSetting('examCardIds', ids)
+      if (board.data) {
+        board.data.settings = { ...(board.data.settings ?? {}), examCardIds: ids }
+      }
+      return
+    }
     await patchData('/board/settings', { settings: { examCardIds: ids } })
     if (board.data) {
       board.data.settings = { ...(board.data.settings ?? {}), examCardIds: ids }
@@ -1471,6 +1516,8 @@ async function saveHomework(content: string): Promise<void> {
     editorOpen.value = false
     notify(next ? '已保存' : '已清空')
     signalTutorial('close-homework-editor')
+    // 作业日期集合可能变了（今天刚布置 / 清空），自动日期要跟着重算
+    void refreshHomeworkDates(true).then(() => evaluateAutoDate())
   } catch (error) {
     const message = error instanceof Error ? error.message : '保存失败'
     editorRef.value?.setError(message)
@@ -1514,23 +1561,61 @@ async function refreshAttendance(): Promise<void> {
   }
 }
 
-async function switchDate(target: string): Promise<void> {
+async function switchDate(target: string, quiet = false): Promise<void> {
   // 同一天重复点击不必再发请求，避免离线模式下来回空转
   if (!target || target === board.date) return
   await board.refresh(target)
   if (board.error) {
-    notify('切换到 ' + target + ' 失败：' + board.error, 'error')
+    // 自动切换（quiet）失败时不打扰大屏，切不回去就保持现状
+    if (!quiet) notify('切换到 ' + target + ' 失败：' + board.error, 'error')
     return
   }
   // 出勤数据是按日期取的，切日期后必须重新拉一次，否则统计还停在上一天
   await refreshAttendance()
-  if (board.date !== target) {
+  if (board.date !== target && !quiet) {
     // 数据层已尽力保证日期，这里再兜一层，避免界面停在旧日期
     notify('无法切换到 ' + target, 'warning')
   }
 }
 
+/** 拉一份「最近有作业的日期」（只到今天，倒序）；旧服务端 / 离线时静默失败 */
+async function refreshHomeworkDates(force = false): Promise<void> {
+  if (!force && Date.now() - autoDateFetchedAt < HOMEWORK_DATES_TTL) return
+  autoDateFetchedAt = Date.now()
+  try {
+    const result = await getData<{ dates?: unknown }>('/board/homework-dates')
+    const list = Array.isArray(result?.dates) ? result.dates : []
+    homeworkDates.value = list.filter((item): item is string => typeof item === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item))
+  } catch {
+    // 离线快照模式 / 服务端还没更新到这一版：保持已有列表，自动逻辑退回「今天」
+  }
+}
+
+function resolveAutoDate(): AutoDateResult {
+  return resolveAutoBoardDate({ settings: settings.value, homeworkDates: homeworkDates.value })
+}
+
+/** 手动翻过日期：暂停自动切换，等自动目标变化（如第一节课开始）后再接管 */
+function suspendAutoDate(): void {
+  autoDateSuspended.value = true
+  autoDateTarget = resolveAutoDate().date
+}
+
+/** 按当前时间判定该显示哪一天；与看板日期不同就自动切过去 */
+async function evaluateAutoDate(): Promise<void> {
+  if (board.loading || !board.data) return
+  // 教程、作业编辑过程中不要动日期，否则正在编辑的内容会落到别的日期上
+  if (tutorialOpen.value || editorOpen.value) return
+  const target = resolveAutoDate()
+  if (autoDateSuspended.value && target.date === autoDateTarget) return
+  autoDateSuspended.value = false
+  autoDateTarget = target.date
+  if (target.date === board.date) return
+  await switchDate(target.date, true)
+}
+
 function shiftDay(delta: number): void {
+  suspendAutoDate()
   const base = parseDateString(board.date)
   base.setDate(base.getDate() + delta)
   void switchDate(toDateString(base)).then(() => signalTutorial('date-change'))
@@ -1538,6 +1623,7 @@ function shiftDay(delta: number): void {
 
 function handleDateSelect(value: unknown): void {
   if (value === null || value === undefined) return
+  suspendAutoDate()
   const raw = value instanceof Date ? value : parseDateString(String(value).slice(0, 10))
   if (Number.isNaN(raw.getTime())) return
   void switchDate(toDateString(raw)).then(() => signalTutorial('date-change'))
@@ -1545,6 +1631,7 @@ function handleDateSelect(value: unknown): void {
 
 async function copyToToday(): Promise<void> {
   if (copyLoading.value) return
+  suspendAutoDate()
   copyLoading.value = true
   const target = toDateString(new Date())
   try {
@@ -1824,6 +1911,15 @@ onMounted(async () => {
   await board.refresh()
   await refreshAttendance()
   handleFreshNotices()
+  // 自动日期切换：先拿到「最近有作业的日期」，再按当前时间落到对应的一天
+  await refreshHomeworkDates(true)
+  await evaluateAutoDate()
+  autoDateTimer = window.setInterval(() => {
+    void (async () => {
+      await refreshHomeworkDates()
+      await evaluateAutoDate()
+    })()
+  }, AUTO_DATE_INTERVAL)
   await applyPendingSettingsRefresh()
   // 教程等看板数据到位后再问，避免弹窗压着骨架屏
   maybeAskTutorial()
@@ -1848,6 +1944,8 @@ onMounted(async () => {
     if (event.scope === 'homework' || event.scope === 'notice' || event.scope === 'exam' || event.scope === 'students' || event.scope === 'settings') {
       await board.refresh()
       handleFreshNotices()
+      // 作业或作息变了，重新判定自动日期（例如刚布置完今天的作业）
+      void refreshHomeworkDates(true).then(() => evaluateAutoDate())
     }
     if (event.scope === 'attendance' || event.scope === 'students') {
       await refreshAttendance()
@@ -1866,6 +1964,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopGlassScrollDegrade()
   if (refreshTimer) window.clearInterval(refreshTimer)
+  if (autoDateTimer) window.clearInterval(autoDateTimer)
   stopRealtime?.()
   stopStatus?.()
   stopLatency?.()

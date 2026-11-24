@@ -42,7 +42,24 @@
           />
         </div>
 
+        <div v-if="selected.length" class="bulk-bar">
+          <v-icon icon="mdi-checkbox-multiple-marked-outline" size="18" />
+          <span class="text-body-2">已选 {{ selected.length }} 条通知</span>
+          <v-btn
+            :loading="removing"
+            color="error"
+            prepend-icon="mdi-delete-sweep-outline"
+            size="small"
+            variant="flat"
+            @click="askRemoveSelected"
+          >
+            批量删除
+          </v-btn>
+          <v-btn size="small" variant="text" @click="selected = []">清除选择</v-btn>
+        </div>
+
         <v-data-table-server
+          v-model="selected"
           :headers="headers"
           :items="items"
           :items-length="total"
@@ -50,6 +67,7 @@
           :loading="loading"
           :page="page"
           item-value="id"
+          show-select
           @update:options="onOptionsChange"
         >
           <template #loading>
@@ -155,9 +173,14 @@
 
     <v-dialog v-model="confirmOpen" max-width="420">
       <v-card>
-        <v-card-title>删除通知</v-card-title>
+        <v-card-title>{{ confirmMode === 'batch' ? '批量删除通知' : '删除通知' }}</v-card-title>
         <v-card-text class="text-body-2">
-          确定删除「{{ confirmTarget?.className || '' }}」班级的通知「{{ confirmTarget?.title || confirmTarget?.content?.slice(0, 12) || '无标题' }}」吗？删除后不可恢复。
+          <template v-if="confirmMode === 'batch'">
+            确定删除已选中的 {{ selected.length }} 条通知吗？删除后不可恢复，这些通知会立即从对应班级的大屏上消失。
+          </template>
+          <template v-else>
+            确定删除「{{ confirmTarget?.className || '' }}」班级的通知「{{ confirmTarget?.title || confirmTarget?.content?.slice(0, 12) || '无标题' }}」吗？删除后不可恢复。
+          </template>
         </v-card-text>
         <v-card-actions>
           <v-btn variant="text" @click="confirmOpen = false">取消</v-btn>
@@ -173,10 +196,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getData } from '@/lib/api'
+import { loadAllClasses } from '@/lib/classList'
 import SfTableSkeleton from '@/components/skeleton/SfTableSkeleton.vue'
 import {
   deleteAdminNotice,
+  deleteAdminNotices,
   listAdminNotices,
   broadcastNotice,
   batchSendNotices,
@@ -222,7 +246,8 @@ const classOptions = computed(() => classes.value.map((item) => ({ id: item.id, 
 
 async function loadClasses(): Promise<void> {
   try {
-    const response = await getData<{ items: ClassOption[] }>('/admin/classes', { page: 1, pageSize: 100 })
+    // 自动翻页取全：班级超过 100 个时，只取第一页会让班级选择器缺项
+    const response = await loadAllClasses<ClassOption>()
     classes.value = response.items
   } catch (error) {
     notify(error instanceof Error ? error.message : '加载班级失败', 'error')
@@ -242,6 +267,8 @@ let searchTimer: number | undefined
 async function load(): Promise<void> {
   loading.value = true
   try {
+    // 换页 / 换筛选时清空选择：批量删除只针对当前看到的这批通知
+    selected.value = []
     const response = await listAdminNotices({
       page: page.value,
       pageSize: pageSize.value,
@@ -382,25 +409,44 @@ async function submitBatch(): Promise<void> {
 }
 
 // ---- 删除 ----
+const selected = ref<string[]>([])
 const confirmOpen = ref(false)
+const confirmMode = ref<'single' | 'batch'>('single')
 const confirmTarget = ref<AdminNotice | null>(null)
 const removing = ref(false)
 
 function askRemove(item: AdminNotice): void {
+  confirmMode.value = 'single'
   confirmTarget.value = item
   confirmOpen.value = true
 }
 
+function askRemoveSelected(): void {
+  if (selected.value.length === 0) return
+  confirmMode.value = 'batch'
+  confirmTarget.value = null
+  confirmOpen.value = true
+}
+
 async function doRemove(): Promise<void> {
-  const target = confirmTarget.value
-  if (!target) return
+  const batch = confirmMode.value === 'batch'
+  const ids = batch ? [...selected.value] : confirmTarget.value ? [confirmTarget.value.id] : []
+  if (ids.length === 0) return
   removing.value = true
   try {
-    await deleteAdminNotice(target.id)
+    if (batch) {
+      const result = await deleteAdminNotices(ids)
+      notify(result.missing > 0 ? '已删除 ' + result.deleted + ' 条通知（' + result.missing + ' 条已被删除）' : '已删除 ' + result.deleted + ' 条通知')
+    } else {
+      await deleteAdminNotice(ids[0])
+      notify('已删除')
+    }
     confirmOpen.value = false
     confirmTarget.value = null
+    selected.value = []
+    // 删掉当前页最后几条时回退一页，避免停在空白页
+    if (items.value.length > 0 && items.value.length <= ids.length && page.value > 1) page.value -= 1
     await load()
-    notify('已删除')
   } catch (error) {
     notify(error instanceof Error ? error.message : '删除失败', 'error')
   } finally {
@@ -438,6 +484,19 @@ onMounted(async () => {
   gap: 12px;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   margin-bottom: 16px;
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--v-theme-error), 0.28);
+  border-radius: 10px;
+  background: rgba(var(--v-theme-error), 0.06);
+  color: rgb(var(--v-theme-error));
 }
 
 .cell-nowrap {

@@ -288,6 +288,13 @@ export function deleteAccessCode(id: string) {
   return http.delete<ApiEnvelope<{ deleted: boolean }>>('/admin/access-codes/' + id).then((r) => r.data.data)
 }
 
+/** 一键重置：换成系统随机新码，旧码立即失效，绑定该码的设备会被吊销 */
+export function resetAccessCode(id: string) {
+  return http
+    .post<ApiEnvelope<AccessCode & { revokedDevices: number; disconnected: number }>>('/admin/access-codes/' + id + '/reset', {})
+    .then((r) => r.data.data)
+}
+
 /* ---------------- 班级详情（含设置） ---------------- */
 export function getClassDetail(classId: string) {
   return http

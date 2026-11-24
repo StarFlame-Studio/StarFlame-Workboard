@@ -174,8 +174,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getData, patchData } from '@/lib/api'
+import { getData } from '@/lib/api'
 import SettingsGroup from '@/components/settings/SettingGroup.vue'
+import { mergeLocalSettings, saveSettingsPatch } from '@/lib/settingsWrite'
 
 interface BookMap {
   [book: string]: string[]
@@ -380,7 +381,7 @@ async function loadConfig(): Promise<void> {
   try {
     await loadManagedSubjects()
     const me = await getData<{ settings: Record<string, unknown> }>('/device/me')
-    const tpl = normalize(me.settings?.homeworkTemplate)
+    const tpl = normalize(mergeLocalSettings(me.settings)?.homeworkTemplate)
     state.subjects = alignSubjects(tpl.subjects)
     state.commonSubject = tpl.commonSubject
     state.actions = tpl.actions
@@ -403,9 +404,9 @@ async function saveConfig(): Promise<void> {
       commonSubject: state.commonSubject,
       actions: state.actions,
     }
-    await patchData('/board/settings', { settings: { homeworkTemplate: payload } })
+    const savedToCloud = await saveSettingsPatch({ homeworkTemplate: payload })
     baseline.value = JSON.stringify(payload)
-    notify('已保存')
+    notify(savedToCloud ? '已保存' : '已保存在本机（只有一体机会同步到班级云端）')
   } catch (e) {
     error.value = e instanceof Error ? e.message : '保存失败'
   } finally {

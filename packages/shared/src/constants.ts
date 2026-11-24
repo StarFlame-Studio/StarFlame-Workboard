@@ -4,14 +4,17 @@ export const API_PREFIX = '/api'
  * 产品版本号：全站唯一来源（网页端页脚、设置「关于」、桌面端窗口与安装器都读这里）。
  * 升级版本时只改这一处 + apps/desktop/package.json 的 version。
  */
-export const APP_VERSION = '1.2.0'
+export const APP_VERSION = '1.2.1'
 /**
  * 数字版本号（用于 Electron / Android 风格的整数比较）。
  * 规则（自下一个版本 v1.2.0 起）：固定四位数，每个版本递增 1 ——
  * v1.2.0 = 1010、v1.2.1 = 1011、v1.2.2 = 1012 …… 发版时把上一版的值 +1 即可，
  * 不要再按「主版本 × 100 + 次版本 × 10 + 修订号」计算。
+ *
+ * 这个数字同时是桌面端自动更新的判断依据（打包脚本会把它写进 latest.yml 的 versionCode），
+ * 所以每次发版必须严格递增：显示版本号不变、只换构建的覆盖发布也靠它才能推下去。
  */
-export const APP_VERSION_CODE = 1010
+export const APP_VERSION_CODE = 1011
 
 export const HEADER_DEVICE_TOKEN = 'x-device-token'
 export const HEADER_REQUEST_ID = 'x-request-id'

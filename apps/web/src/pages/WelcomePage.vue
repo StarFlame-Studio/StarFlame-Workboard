@@ -142,7 +142,7 @@
             <tbody>
               <tr><td class="text-medium-emphasis">产品</td><td>星焰作业板</td></tr>
               <tr><td class="text-medium-emphasis">定位</td><td>适用于班级大屏的作业展示工具</td></tr>
-              <tr><td class="text-medium-emphasis">版本</td><td>{{ version }}</td></tr>
+              <tr><td class="text-medium-emphasis">版本</td><td>{{ appVersion }}</td></tr>
               <tr><td class="text-medium-emphasis">接口</td><td>{{ apiBase }}</td></tr>
             </tbody>
           </v-table>
@@ -161,13 +161,12 @@
 <script setup lang="ts">
 import logoUrl from '@/assets/logo.svg'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { APP_VERSION, DEVICE_TOKEN_STORAGE_KEY } from '@starflame/shared'
+import { DEVICE_TOKEN_STORAGE_KEY } from '@starflame/shared'
 import { apiBase, getData } from '@/lib/api'
+import { appVersion, loadAppVersion } from '@/lib/appVersion'
 import { navigate, ROUTES } from '@/lib/nav'
 import { captureSnapshot, ensureLocalBoard, setMode } from '@/lib/dataSource'
 import { isDesktop } from '@/lib/platform'
-
-const version = APP_VERSION
 
 /** 桌面端下载页（与网页端同源部署，目录 /desktop/） */
 const DOWNLOAD_PAGE_URL = '/desktop/'
@@ -327,6 +326,7 @@ async function submitToken(): Promise<void> {
 onMounted(() => {
   window.addEventListener('online', () => { offline.value = false })
   window.addEventListener('offline', () => { offline.value = true })
+  void loadAppVersion()
 })
 </script>
 <style scoped>

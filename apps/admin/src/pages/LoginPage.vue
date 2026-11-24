@@ -17,7 +17,7 @@
             {{ mode === 'login' ? '登录你的账号' : '注册新账号' }}
           </v-card-title>
           <v-card-subtitle class="login-card-sub">
-            {{ mode === 'login' ? '账号或邮箱均可登录' : '注册后默认拥有教师权限' }}
+            {{ mode === 'login' ? '账号或邮箱均可登录' : '注册后默认拥有管理员权限' }}
           </v-card-subtitle>
         </v-card-item>
 
@@ -59,7 +59,7 @@
             type="password"
           />
           <div v-if="mode === 'register'" class="text-caption text-medium-emphasis mb-3">
-            密码 8-64 位，需同时包含字母和数字。注册后默认拥有「教师」权限，可在「班级」页凭班级ID加入并管理班级。
+            密码 8-64 位，需同时包含字母和数字。注册后默认是「管理员」：可以新建班级，也可以在「班级」页凭班级 ID 加入已有班级，加入后即拥有该班级的全部设置权限，并能管理这些班级的通知与设备。
           </div>
 
           <v-alert v-if="error" class="mb-4" density="compact" type="error" variant="tonal">{{ error }}</v-alert>

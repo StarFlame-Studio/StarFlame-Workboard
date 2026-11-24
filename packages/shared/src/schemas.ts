@@ -123,6 +123,14 @@ export const noticeBatchSchema = z.object({
     .max(200, '一次最多提交 200 条通知'),
 })
 
+/** 后台批量删除已发送的通知 */
+export const noticeDeleteBatchSchema = z.object({
+  ids: z
+    .array(z.string().trim().min(1))
+    .min(1, '请至少选择一条通知')
+    .max(200, '一次最多删除 200 条通知'),
+})
+
 export const examSubjectSchema = z.object({
   subjectId: z.string().min(1).nullable().optional(),
   name: z.string().trim().max(32).nullable().optional(),

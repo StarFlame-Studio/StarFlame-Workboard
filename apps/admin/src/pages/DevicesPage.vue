@@ -28,6 +28,36 @@
             <span class="status-dot is-offline mr-2" />离线 {{ offlineCount }}
           </v-btn>
         </v-btn-toggle>
+        <v-select
+          v-model="roleFilter"
+          class="filter-select"
+          clearable
+          density="compact"
+          hide-details
+          :items="roleOptions"
+          label="设备类型"
+          variant="outlined"
+        />
+        <v-select
+          v-model="platformFilter"
+          class="filter-select"
+          clearable
+          density="compact"
+          hide-details
+          :items="platformOptions"
+          label="平台类型"
+          variant="outlined"
+        />
+        <v-select
+          v-model="runtimeFilter"
+          class="filter-select"
+          clearable
+          density="compact"
+          hide-details
+          :items="runtimeOptions"
+          label="客户端"
+          variant="outlined"
+        />
         <div class="live-hint text-caption text-medium-emphasis">
           <v-icon icon="mdi-autorenew" size="14" />
           <span class="ml-1">每 30 秒自动刷新</span>
@@ -37,6 +67,23 @@
       <div v-if="selected.length" class="bulk-bar">
         <v-icon icon="mdi-checkbox-multiple-marked-outline" size="18" />
         <span class="text-body-2">已选 {{ selected.length }} 台设备</span>
+        <!-- disabled 的 v-btn 设了 pointer-events:none，鼠标悬停拿不到 title，外层 span 承载提示 -->
+        <span
+          :title="
+            selectedDesktopCount === 0 ? '选中的设备里没有可远程卸载的桌面客户端' : undefined
+          "
+        >
+          <v-btn
+            :disabled="selectedDesktopCount === 0"
+            color="warning"
+            prepend-icon="mdi-delete-outline"
+            size="small"
+            variant="flat"
+            @click="askBatchUninstall"
+          >
+            批量卸载桌面版{{ selectedDesktopCount > 0 ? '（' + selectedDesktopCount + '）' : '' }}
+          </v-btn>
+        </span>
         <v-btn
           :loading="revoking"
           color="error"
@@ -97,18 +144,27 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn size="small" variant="text" @click="openDetail(item)">详情</v-btn>
-          <template v-if="remoteUninstallReady(item)">
-            <v-btn
-              v-if="!item.uninstallPending"
-              color="warning"
-              size="small"
-              variant="text"
-              @click="askUninstall(item)"
-            >
-              卸载
-            </v-btn>
-            <v-chip v-else color="warning" size="small" variant="tonal">卸载待送达</v-chip>
-          </template>
+          <!-- 非桌面端设备（浏览器 / 未上报 UA）上没有可卸载的客户端：按钮保留但置灰 -->
+          <span v-if="!isDesktopClient(item)" :title="remoteUninstallHint(item)">
+            <v-btn disabled size="small" variant="text">卸载</v-btn>
+          </span>
+          <v-chip
+            v-else-if="item.uninstallPending"
+            color="warning"
+            size="small"
+            variant="tonal"
+          >
+            卸载待送达
+          </v-chip>
+          <v-btn
+            v-else-if="remoteUninstallReady(item)"
+            color="warning"
+            size="small"
+            variant="text"
+            @click="askUninstall(item)"
+          >
+            卸载
+          </v-btn>
           <v-chip
             v-else
             color="default"
@@ -276,6 +332,45 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="batchUninstallOpen" max-width="520">
+      <v-card>
+        <v-card-title>批量卸载桌面版</v-card-title>
+        <v-card-text class="text-body-2">
+          <p class="mb-2">
+            将从已选中的 <strong>{{ selected.length }}</strong> 台设备里挑出可远程卸载的桌面客户端，下发静默卸载指令。
+          </p>
+          <div class="batch-summary">
+            <div>
+              <span class="detail-label">可卸载</span>
+              <span class="text-success font-weight-medium">{{ selectedDesktopIds.length }} 台</span>
+            </div>
+            <div>
+              <span class="detail-label">将跳过</span>
+              <span class="text-medium-emphasis">{{ selected.length - selectedDesktopIds.length }} 台</span>
+            </div>
+          </div>
+          <p v-if="selectedSkipText" class="text-caption text-medium-emphasis mb-2">{{ selectedSkipText }}</p>
+          <v-alert class="mb-0" density="compact" type="info" variant="tonal">
+            在线设备几秒内开始卸载；当前不在线的设备，指令会保留 24 小时，下次开机联网后自动执行。
+            网页端设备与版本低于 v{{ REMOTE_UNINSTALL_MIN_VERSION }} 的桌面端不会被下发。
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="batchUninstallOpen = false">取消</v-btn>
+          <v-spacer />
+          <v-btn
+            :disabled="selectedDesktopIds.length === 0"
+            :loading="batchUninstalling"
+            color="warning"
+            variant="flat"
+            @click="doBatchUninstall"
+          >
+            确认卸载 {{ selectedDesktopIds.length }} 台
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snack.show" :color="snack.color" timeout="2600">{{ snack.text }}</v-snackbar>
   </div>
 </template>
@@ -354,11 +449,41 @@ const page = ref(1)
 const pageSize = ref(50)
 const keyword = ref('')
 const statusFilter = ref<'all' | 'online' | 'offline'>('all')
+/** 设备类型筛选（身份），null = 全部 */
+const roleFilter = ref<DeviceRole | null>(null)
+/** 平台类型筛选：由 UA 归类，服务端筛 */
+const platformFilter = ref<PlatformKind | null>(null)
+/** 客户端形态：桌面客户端 / 网页端 */
+const runtimeFilter = ref<RuntimeKind | null>(null)
+
+type PlatformKind = 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'
+type RuntimeKind = 'desktop' | 'browser'
+
+const roleOptions = [
+  { title: '一体机', value: 'terminal' },
+  { title: '老师设备', value: 'teacher' },
+  { title: '学生设备', value: 'student' },
+  { title: '家长设备', value: 'parent' },
+  { title: '游客', value: 'guest' },
+]
+const platformOptions = [
+  { title: 'Windows', value: 'windows' },
+  { title: 'macOS', value: 'macos' },
+  { title: 'Linux', value: 'linux' },
+  { title: 'Android', value: 'android' },
+  { title: 'iOS / iPadOS', value: 'ios' },
+  { title: '未知平台', value: 'unknown' },
+]
+const runtimeOptions = [
+  { title: '桌面客户端', value: 'desktop' },
+  { title: '网页端', value: 'browser' },
+]
 const snack = reactive({ show: false, text: '', color: 'success' })
 
 const allCount = computed(() => onlineCount.value + offlineCount.value)
 const emptyText = computed(() => {
   if (keyword.value.trim()) return '没有匹配的设备'
+  if (roleFilter.value || platformFilter.value || runtimeFilter.value) return '当前筛选条件下没有设备'
   if (statusFilter.value === 'online') return '当前没有在线设备'
   if (statusFilter.value === 'offline') return '当前没有离线设备'
   return '暂无设备'
@@ -396,6 +521,9 @@ async function load(): Promise<void> {
       pageSize: pageSize.value,
       keyword: keyword.value.trim() || undefined,
       status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+      role: roleFilter.value ?? undefined,
+      platform: platformFilter.value ?? undefined,
+      runtime: runtimeFilter.value ?? undefined,
     })
     items.value = response.items
     total.value = response.total
@@ -421,6 +549,12 @@ watch(keyword, () => {
 })
 
 watch(statusFilter, () => {
+  page.value = 1
+  resetSelection()
+  void load()
+})
+
+watch([roleFilter, platformFilter, runtimeFilter], () => {
   page.value = 1
   resetSelection()
   void load()
@@ -551,6 +685,61 @@ async function doUninstall(): Promise<void> {
   }
 }
 
+// ---------- 批量远程卸载 ----------
+const batchUninstallOpen = ref(false)
+const batchUninstalling = ref(false)
+
+/** 已选中设备里真正能远程卸载的（桌面客户端 + 版本够） */
+const selectedDesktopIds = computed(() =>
+  items.value.filter((item) => selected.value.includes(item.id) && remoteUninstallReady(item)).map((item) => item.id),
+)
+
+/** 跳过原因提示：把「网页端」和「版本过低」分开说，方便一次性解释清楚 */
+const selectedDesktopCount = computed(() => selectedDesktopIds.value.length)
+
+const selectedSkipText = computed(() => {
+  const chosen = items.value.filter((item) => selected.value.includes(item.id))
+  const web = chosen.filter((item) => parseUserAgent(item.userAgent).runtime !== '桌面客户端').length
+  const old = chosen.length - web - selectedDesktopIds.value.length
+  const parts: string[] = []
+  if (web > 0) parts.push(web + ' 台是网页端（浏览器打开，不受影响）')
+  if (old > 0) parts.push(old + ' 台桌面端版本低于 v' + REMOTE_UNINSTALL_MIN_VERSION)
+  return parts.length > 0 ? '将跳过：' + parts.join('，') : ''
+})
+
+function askBatchUninstall(): void {
+  if (selected.value.length === 0) return
+  batchUninstallOpen.value = true
+}
+
+async function doBatchUninstall(): Promise<void> {
+  const ids = selectedDesktopIds.value
+  if (ids.length === 0) return
+  batchUninstalling.value = true
+  try {
+    const result = await postData<{
+      requested: number
+      accepted: number
+      delivered: number
+      pending: number
+      missing: number
+      skipped: Array<{ id: string; name: string; reason: string }>
+    }>('/admin/devices/uninstall-batch', { ids })
+    const parts = ['已向 ' + result.delivered + ' 台在线设备下发卸载指令']
+    if (result.pending > 0) parts.push(result.pending + ' 台离线，指令已保留（下次上线自动执行）')
+    if (result.skipped.length > 0) parts.push(result.skipped.length + ' 台被跳过')
+    if (result.missing > 0) parts.push(result.missing + ' 台已不存在')
+    notify(parts.join('，'), result.skipped.length > 0 || result.missing > 0 ? 'warning' : 'success')
+    batchUninstallOpen.value = false
+    selected.value = []
+    await load()
+  } catch (error) {
+    notify(error instanceof Error ? error.message : '批量卸载失败', 'error')
+  } finally {
+    batchUninstalling.value = false
+  }
+}
+
 // ---------- 设备详情 ----------
 const detailOpen = ref(false)
 const detailTarget = ref<DeviceRow | null>(null)
@@ -585,6 +774,11 @@ function compareVersionText(a: string, b: string): number {
   return 0
 }
 
+/** 是不是桌面客户端（网页端设备没有可卸载的客户端，卸载按钮要置灰） */
+function isDesktopClient(item: DeviceRow): boolean {
+  return parseUserAgent(item.userAgent).runtime === '桌面客户端'
+}
+
 /** 这台设备能否接受远程卸载指令（桌面端且版本足够） */
 function remoteUninstallReady(item: DeviceRow): boolean {
   const info = parseUserAgent(item.userAgent)
@@ -594,7 +788,8 @@ function remoteUninstallReady(item: DeviceRow): boolean {
 
 function remoteUninstallHint(item: DeviceRow): string {
   const info = parseUserAgent(item.userAgent)
-  if (info.runtime !== '桌面客户端') return '这台设备不是桌面客户端（网页端打开），无法远程卸载'
+  if (info.runtime === '未上报') return '这台设备没有上报客户端信息，无法确认能否远程卸载'
+  if (info.runtime !== '桌面客户端') return '这台设备是浏览器打开的网页端，没有可卸载的客户端'
   return '当前版本 v' + info.version + '，远程卸载需要 v' + REMOTE_UNINSTALL_MIN_VERSION + ' 或更高版本，请先升级'
 }
 
@@ -627,6 +822,10 @@ async function copyUa(): Promise<void> {
 .filter-search {
   max-width: 320px;
   min-width: 220px;
+}
+.filter-select {
+  min-width: 148px;
+  max-width: 190px;
 }
 .live-hint {
   display: inline-flex;
@@ -692,6 +891,19 @@ async function copyUa(): Promise<void> {
 .detail-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
+}
+.batch-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.batch-summary .detail-label {
+  margin-right: 6px;
 }
 .detail-ua {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

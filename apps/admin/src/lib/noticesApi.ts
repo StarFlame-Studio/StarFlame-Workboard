@@ -41,6 +41,11 @@ export function deleteAdminNotice(id: string) {
   return deleteData('/admin/notices/' + id)
 }
 
+/** 批量删除已发送的通知（一次最多 200 条） */
+export function deleteAdminNotices(ids: string[]) {
+  return postData<{ deleted: number; ids: string[]; missing: number }>('/admin/notices/delete-batch', { ids })
+}
+
 /** 群发：同一份内容发到多个班级 */
 export function broadcastNotice(classIds: string[], input: AdminNoticeInput) {
   return postData<{ created: number; classIds: string[] }>('/admin/notices/broadcast', { classIds, ...input })

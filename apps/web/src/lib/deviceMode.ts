@@ -105,11 +105,12 @@ function isMobileUa(): boolean {
   return /Android.+Mobile|iPhone|iPod|Windows Phone|Mobile Safari/i.test(ua)
 }
 
-export function detectDeviceMode(): DeviceMode {
+/**
+ * 纯自动检测：不看手动覆盖。
+ * 手动覆盖由 detectDeviceMode() 叠加；手机 / 平板判定的强制处理在 refreshDeviceMode()。
+ */
+function detectAutoMode(): DeviceMode {
   if (typeof window === 'undefined') return 'desktop'
-  const override = overrideRef.value
-  if (override !== 'auto') return override
-
   const touchPrimary = primaryTouch()
   const touch = touchPrimary || touchCapable()
   const { short, long } = screenSides()
@@ -124,6 +125,16 @@ export function detectDeviceMode(): DeviceMode {
   return logicalViewportWidth() < MOBILE_MAX_WIDTH ? 'phone' : 'desktop'
 }
 
+export function detectDeviceMode(): DeviceMode {
+  if (typeof window === 'undefined') return 'desktop'
+  const auto = detectAutoMode()
+  const override = overrideRef.value
+  if (override === 'auto') return auto
+  // 网页端自动判为手机 / 平板时，一体机模式被强制关闭（refreshDeviceMode 会同步清掉覆盖值）
+  if (override === 'terminal' && (auto === 'phone' || auto === 'tablet')) return auto
+  return override
+}
+
 /** 手动覆盖（auto / terminal / desktop），写 localStorage 后立即生效 */
 export const overrideRef = ref<DeviceModeOverride>('auto')
 export const autoModeRef = ref<DeviceMode>('desktop')
@@ -133,6 +144,11 @@ export const deviceMode = computed<DeviceMode>(() =>
 
 /** 是否一体机模式（桌面级布局、大字号） */
 export const isTerminal = computed(() => deviceMode.value === 'terminal')
+
+/** 是否手机 / 平板模式：这两种模式下一体机模式强制关闭，设置也不同步云端 */
+export const isSmallDeviceMode = computed(
+  () => deviceMode.value === 'phone' || deviceMode.value === 'tablet',
+)
 
 /**
  * 是否使用「手机布局」：仅真正的窄屏手机/平板竖屏，
@@ -168,7 +184,18 @@ function applyDomFlags(): void {
 
 function refreshDeviceMode(): void {
   viewportWidthRef.value = logicalViewportWidth()
-  autoModeRef.value = detectDeviceMode()
+  const auto = detectAutoMode()
+  autoModeRef.value = auto
+  // 网页端判为手机 / 平板模式时强制关闭一体机模式：
+  // 之前手动选过「一体机模式」的也要清掉，否则手机上会一直用桌面级布局。
+  if (overrideRef.value === 'terminal' && (auto === 'phone' || auto === 'tablet')) {
+    overrideRef.value = 'auto'
+    try {
+      localStorage.removeItem(OVERRIDE_KEY)
+    } catch {
+      /* 忽略写入失败 */
+    }
+  }
   applyDomFlags()
 }
 

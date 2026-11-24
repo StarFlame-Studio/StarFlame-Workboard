@@ -2,7 +2,7 @@ import { app, ipcMain, shell } from 'electron'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { CACHE_DIR } from './paths'
-import { CHANNEL } from './env'
+import { APP_VERSION_CODE, CHANNEL } from './env'
 import { getMainWindow } from './window'
 import { takeStartupNotice } from './startupNotice'
 import { checkForUpdates, downloadUpdate, getUpdateStatus, installUpdate } from './updater'
@@ -39,7 +39,9 @@ function withWindow<T>(fn: (win: NonNullable<ReturnType<typeof getMainWindow>>) 
 export function registerIpcHandlers(): void {
   ipcMain.handle('sf:app:info', () => ({
     channel: CHANNEL,
+    // 以安装包内 package.json 的真实版本为准（与版本徽标、更新检查一致）
     version: app.getVersion(),
+    versionCode: APP_VERSION_CODE,
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,

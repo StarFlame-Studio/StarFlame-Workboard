@@ -44,22 +44,27 @@ html.ct-glass:is(.v-theme--dark, :has(.v-theme--dark)) {
 
    注意 `.wall-card` 是作业墙布局里的 <article>，没有 .v-card 类，
    base.css 那条压不到它，用普通选择器即可（加 .v-card 反而会失配）。 */
-html.ct-glass .grid-item > .v-card.v-card,
-html.ct-glass .empty-subject-card.v-card.v-card,
-html.ct-glass .time-card.v-card.v-card,
-html.ct-glass .hitokoto-card.v-card.v-card,
-/* 通知条 / 考试安排 / 教程 / 安装授权卡：这几类不在 .grid-item 里，单独列出 */
-html.ct-glass .notice-card.v-card.v-card,
-html.ct-glass .wall-notice.v-card.v-card,
-html.ct-glass .concise-exam-card.v-card.v-card,
-html.ct-glass .theme-intro-card.v-card.v-card,
-html.ct-glass .tutorial-card.v-card.v-card,
-html.ct-glass .pwa-install-card.v-card.v-card,
-/* 作业墙布局里这两张卡直接挂在 rail 上，rail 类也一并列出 */
-html.ct-glass .wall-rail-time.v-card.v-card,
-html.ct-glass .wall-rail-hitokoto.v-card.v-card,
-html.ct-glass .wall-card {
-  @include g.glass;
+/* 通知条 / 考试安排 / 教程 / 安装授权卡：这几类不在 .grid-item 里；
+   作业墙布局里两张卡直接挂在 rail 上，rail 类也一并列出。 */
+$glass-cards:
+  '.grid-item > .v-card.v-card',
+  '.empty-subject-card.v-card.v-card',
+  '.time-card.v-card.v-card',
+  '.hitokoto-card.v-card.v-card',
+  '.notice-card.v-card.v-card',
+  '.wall-notice.v-card.v-card',
+  '.concise-exam-card.v-card.v-card',
+  '.theme-intro-card.v-card.v-card',
+  '.tutorial-card.v-card.v-card',
+  '.pwa-install-card.v-card.v-card',
+  '.wall-rail-time.v-card.v-card',
+  '.wall-rail-hitokoto.v-card.v-card',
+  '.wall-card';
+
+@each $card in $glass-cards {
+  html.ct-glass #{$card} {
+    @include g.glass;
+  }
 }
 
 /* ---------- 底栏胶囊按钮 / 空科目胶囊 / 自定义卡片 chip ----------
@@ -109,20 +114,30 @@ html.ct-glass .wall-notice.notice-urgent.v-card.v-card {
 /* ---------- 悬停：保住毛玻璃外观，不加额外高光 ----------
    BoardPage / index.scss / HomeworkGrid / HomeActions 里给这些元素写了带 !important 的
    hover 投影，会把毛玻璃的投影顶掉；这里用同一份投影覆盖回去，悬停前后一致。 */
-html.ct-glass .grid-item > .v-card.v-card:hover,
-html.ct-glass .empty-subject-card.v-card.v-card:hover,
-html.ct-glass .time-card.v-card.v-card:hover,
-html.ct-glass .hitokoto-card.v-card.v-card:hover,
-html.ct-glass .notice-card.v-card.v-card:hover,
-html.ct-glass .wall-notice.v-card.v-card:hover,
-html.ct-glass .concise-exam-card.v-card.v-card:hover,
-html.ct-glass .theme-intro-card.v-card.v-card:hover,
-html.ct-glass .tutorial-card.v-card.v-card:hover,
-html.ct-glass .pwa-install-card.v-card.v-card:hover,
-html.ct-glass .wall-rail-time.v-card.v-card:hover,
-html.ct-glass .wall-rail-hitokoto.v-card.v-card:hover,
-html.ct-glass .wall-card:hover {
-  box-shadow: var(--glass-shadow) !important;
+@each $card in $glass-cards {
+  html.ct-glass #{$card}:hover {
+    box-shadow: var(--glass-shadow) !important;
+  }
+}
+
+/* ---------- 玻璃卡片里的列表 ----------
+   base.css 有一条全局的 `.v-list { background: var(--bg-card) !important }`（实色底），
+   会把卡片正文里的 v-list —— 比如「安装应用与授权」卡的权限列表 —— 整块盖成不透明，
+   玻璃背景在正文区域被切掉一块，只剩卡片外圈是玻璃。
+   这里只在玻璃卡片内部把列表底打回透明；悬停 / 选中的底色也换成半透明，
+   否则鼠标移到列表项上同样会切出一块实色。 */
+@each $card in $glass-cards {
+  html.ct-glass #{$card} .v-list {
+    background: transparent !important;
+  }
+
+  html.ct-glass #{$card} .v-list-item:hover {
+    background: rgba(var(--v-theme-on-surface), 0.06) !important;
+  }
+
+  html.ct-glass #{$card} .v-list-item--active {
+    background: rgba(var(--v-theme-primary), 0.14) !important;
+  }
 }
 
 html.ct-glass .home-actions .act.act:hover,

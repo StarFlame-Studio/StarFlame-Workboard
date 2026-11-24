@@ -100,6 +100,10 @@ node scripts/build-bootstrap.mjs             # 统一引导下载安装器
 
 数字版本号（`APP_VERSION_CODE`）自 v1.2.0 起改为固定四位数，每个版本递增 1：v1.2.0 = 1010、v1.2.1 = 1011、v1.2.2 = 1012 ……发版时把上一版的值 +1 即可，不再按「主版本 × 100 + 次版本 × 10 + 修订号」计算。
 
+界面里的版本号有两个来源，别混：桌面端必须读安装包自身的真实版本（主进程 `app.getVersion()`，经 `apps/web/src/lib/appVersion.ts` 的 `loadAppVersion()` 注入），网页端才用构建时打进 bundle 的 `APP_VERSION`。为避免「只改了版本常量却忘了重建 shared」把旧版本号打进页面，构建链有两道校验：`apps/desktop/scripts/build-renderer.mjs` 在构建渲染进程前强制重建 `@starflame/shared`；`apps/web` 的 `prebuild` 会跑 `scripts/check-shared-build.mjs` 比对源码与 `packages/shared/dist` 的版本号，不一致直接构建失败。
+
+桌面端自动更新自 v1.2.1 起按**数字版本号**判断新旧：打包脚本把 `APP_VERSION_CODE` 作为 `versionCode` 写进各通道的 `latest.yml`，客户端优先比较这个数字，`latest.yml` 没有该字段时退回 semver 比较。因此哪怕显示版本号不变（例如只改了一个构建），只要 `APP_VERSION_CODE` 递增，已安装的设备也能收到更新。**每次发版都必须让 `APP_VERSION_CODE` 严格递增，否则同版本号的设备收不到新包。**
+
 ## 下载
 
 安装包不进入版本库，统一发布在各平台的发行版附件：

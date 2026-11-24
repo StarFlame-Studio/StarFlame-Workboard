@@ -21,6 +21,7 @@ import { db } from '../db/index.js'
 import {
   attendanceRecords,
   classAccessCodes,
+  classMembers,
   classes,
   customCards,
   devices,
@@ -59,8 +60,16 @@ async function resolveClassId(req: any): Promise<string> {
   const row = rows[0]
   if (!row) throw notFound('班级不存在')
   const user = req.user
-  const isAdmin = user.role === 'owner' || user.role === 'admin'
-  if (!isAdmin && row.ownerId !== user.id) throw forbidden('无权访问该班级')
+  // 超级管理员可访问全部班级；管理员与教师只能访问自己创建/加入的班级
+  // （后台「加入班级」后即获得该班全部设置权限，所以这里认成员身份）
+  if (user.role !== 'owner' && row.ownerId !== user.id) {
+    const member = await db
+      .select({ userId: classMembers.userId })
+      .from(classMembers)
+      .where(and(eq(classMembers.classId, row.id), eq(classMembers.userId, user.id)))
+      .limit(1)
+    if (member.length === 0) throw forbidden('无权访问该班级')
+  }
   return row.id
 }
 
@@ -239,6 +248,30 @@ router.get('/homework', readLimiter, async (req, res, next) => {
         version: h.version,
         updatedAt: h.updatedAt,
       })),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+/**
+ * 最近有作业的日期列表（只到今天，按日期倒序）。
+ * 看板用它做「第一节课前 / 当天不上课时显示最近有作业的一天」的自动切换。
+ */
+router.get('/homework-dates', readLimiter, async (req, res, next) => {
+  try {
+    const classId = await resolveClassId(req)
+    const today = todayString()
+    const rows = await db
+      .select({ dueDate: homework.dueDate })
+      .from(homework)
+      .where(and(eq(homework.classId, classId), lte(homework.dueDate, today)))
+      .groupBy(homework.dueDate)
+      .orderBy(desc(homework.dueDate))
+      .limit(120)
+    ok(res, {
+      today,
+      dates: rows.map((row) => row.dueDate).filter((value): value is string => Boolean(value)),
     })
   } catch (error) {
     next(error)

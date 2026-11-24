@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { apiBase, setReachableHook } from '@/lib/api'
-import { captureSnapshot, ds, flushPending, isLocalMode, setOfflineActive } from '@/lib/dataSource'
+import { captureSnapshot, ds, flushPending, isLocalMode, setAutoOfflineHandler, setOfflineActive } from '@/lib/dataSource'
 import { countPending, getActiveClassId, hasSnapshot } from '@/lib/localCache'
 
 /** 自动离线模式的持久化键 */
@@ -140,7 +140,13 @@ export async function probeServer(): Promise<boolean> {
       cache: 'no-store',
       signal: controller.signal,
     })
-    return response.status < 500
+    if (response.status < 500) {
+      // 探测成功同样是「服务器可达」的强证据：记下时间，后续恢复流程不必重复探测
+      probeFailures = 0
+      lastReachableAt = Date.now()
+      return true
+    }
+    return false
   } catch {
     return false
   } finally {
@@ -156,7 +162,8 @@ export function noteServerReachable(): void {
   probeFailures = 0
   lastReachableAt = Date.now()
   if (offlineUi.status === 'syncing' || offlineUi.status === 'synced') return
-  if (readState().active) {
+  // 自动离线时内存态可能是唯一线索（旧版首屏降级只写 ds.offline），两条都要认
+  if (readState().active || ds.offline) {
     void flushAndRecover()
     return
   }
@@ -171,11 +178,19 @@ function reloadData(): void {
 }
 
 /** 进入自动离线模式 */
-export async function enterOffline(reason = '网络不可用'): Promise<void> {
-  if (readState().active) return
+export async function enterOffline(reason = '网络不可用', options?: { force?: boolean }): Promise<void> {
+  if (readState().active) {
+    // 标记已落盘但内存态可能没同步（例如刷新后、或首屏降级直接置了 ds.offline）：补齐再走恢复流程
+    setOfflineActive(true)
+    if (offlineUi.status !== 'offline' && offlineUi.status !== 'syncing' && offlineUi.status !== 'synced') {
+      offlineUi.status = 'offline'
+    }
+    return
+  }
   // 保护窗口：最近 60s 内还有接口请求成功，说明网络与服务都可达，
   // 此时把一次探测失败当作离线就是误判（弱网/限流/后台标签页节流都会造成探测超时）。
-  if (navigator.onLine && Date.now() - lastReachableAt < REACHABLE_GRACE_MS) return
+  // force 用于「首屏已连续失败降级到缓存」这类已经确认不可达的场景，跳过保护窗口。
+  if (!options?.force && navigator.onLine && Date.now() - lastReachableAt < REACHABLE_GRACE_MS) return
   const since = new Date().toISOString()
   saveState({ active: true, since })
   setOfflineActive(true)
@@ -219,9 +234,15 @@ export async function flushAndRecover(): Promise<void> {
     reloadData()
     return
   }
+  // 恢复前先确认服务器真的可达（60s 内有接口成功则免探测，避免重复请求）：
+  // 失败时保持离线，避免「空回放 → 显示在线 → 下一次请求又失败 → 再切离线」的闪烁。
+  if (Date.now() - lastReachableAt >= REACHABLE_GRACE_MS && !(await probeServer())) {
+    if (readState().active || ds.offline) offlineUi.status = 'offline'
+    return
+  }
   if (countPending(classId) === 0) {
-    exitOffline()
     await captureSnapshot()
+    exitOffline()
     offlineUi.status = 'online'
     reloadData()
     return
@@ -234,7 +255,8 @@ export async function flushAndRecover(): Promise<void> {
   try {
     for (let attempt = 1; attempt <= MAX_FLUSH_ATTEMPTS; attempt += 1) {
       offlineUi.attempt = attempt
-      const result = await flushPending({ onlyReady: true })
+      // 已确认服务器恢复：忽略下次重试时间的退避，立刻把积压改动推上去
+      const result = await flushPending()
       summary.synced += result.synced
       summary.dropped += result.dropped
       summary.failed += result.failed
@@ -303,7 +325,20 @@ async function tick(): Promise<void> {
     await flushAndRecover()
     return
   }
-  if (isLocalMode()) return
+  // 兼容「只置了内存 ds.offline、没落盘离线标记」的旧状态（首屏降级旧实现）：
+  // 先补登记标记，再走正常恢复流程；否则下面 isLocalMode() 会早退，永远停在缓存模式。
+  if (ds.offline) {
+    const since = new Date().toISOString()
+    saveState({ active: true, since })
+    offlineUi.status = 'offline'
+    offlineUi.since = since
+    setOfflineActive(true)
+    if (!navigator.onLine) return
+    await flushAndRecover()
+    return
+  }
+  // 用户手动选择的本地模式不会自动切回在线
+  if (ds.mode === 'local') return
   if (!navigator.onLine) {
     await enterOffline('网络已断开')
     return
@@ -359,6 +394,10 @@ export function initOffline(): void {
     offlineUi.since = state.since
   }
   setReachableHook(() => noteServerReachable())
+  // 数据层首屏降级 / 缓存兜底时通过它登记自动离线（force：已确认不可达，跳过可达保护窗口）
+  setAutoOfflineHandler((reason, options) => {
+    void enterOffline(reason, options)
+  })
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
   document.addEventListener('visibilitychange', onVisible)
@@ -399,6 +438,7 @@ export function stopOffline(): void {
   if (!started) return
   started = false
   setReachableHook(null)
+  setAutoOfflineHandler(null)
   window.removeEventListener('online', onOnline)
   window.removeEventListener('offline', onOffline)
   document.removeEventListener('visibilitychange', onVisible)

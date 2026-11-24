@@ -8,7 +8,10 @@
   apps/web/src/styles/mdi-subset.css
   apps/admin/src/assets/fonts/mdi-subset.woff2
   apps/admin/src/styles/mdi-subset.css
-新增图标后重新运行：/tmp/ft/bin/python apps/web/scripts/build-mdi-subset.py
+新增图标后重新运行（缺 fontTools 时先建临时 venv）：
+  python3 -m venv /tmp/ft && /tmp/ft/bin/pip install fonttools brotli
+  /tmp/ft/bin/python apps/web/scripts/build-mdi-subset.py
+web 每次 build 前会自动跑 apps/web/scripts/check-mdi-subset.mjs 校验，漏图标会直接构建失败。
 """
 import glob
 import os

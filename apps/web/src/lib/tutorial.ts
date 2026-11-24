@@ -111,8 +111,8 @@ export const BASIC_TUTORIAL_STEPS: TutorialStep[] = [
     title: '第二步：写下作业并保存',
     body: '在输入框里写今天的作业内容，换行就是分条。输入框下面那排按钮是快捷入口：「粘贴」「粘贴并完成」直接把复制好的作业贴进来；再往下的「书/复习/预习」等按钮点一下就能插入对应的常用短语，写完点「保存」，同班的大屏会自动同步。',
     selector: '[data-tutorial-anchor="hw-area"]',
-    // 用户中途把编辑窗口关掉时，指回科目卡片，点一下就能重新打开
-    fallbackSelector: '.grid-item-inner .sf-subject-title',
+    // 用户中途把编辑窗口关掉时，指回科目入口（有作业的卡片 / 空科目按钮 / 空科目胶囊），点一下就能重新打开
+    fallbackSelector: '.grid-item-inner .sf-subject-title, .empty-buttons .empty-btn, .empty-subjects .v-chip',
     // 小屏幕下卡片别压住「保存」，否则这一步没法完成
     avoidSelector: '[data-tutorial-anchor="hw-save"]',
     highlightClosest: '.grid-item-inner',

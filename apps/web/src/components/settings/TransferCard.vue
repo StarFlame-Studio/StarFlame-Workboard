@@ -78,11 +78,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getData, patchData } from '@/lib/api'
+import { getData } from '@/lib/api'
 import { useSessionStore } from '@/stores/session'
 import SettingsCard from '@/components/settings/SettingsCard.vue'
 import { markSettingsDirty } from '@/lib/settingsDirty'
 import { getDef } from '@/lib/settingDefs'
+import { saveSettingsPatch, mergeLocalSettings } from '@/lib/settingsWrite'
 
 /** 备份文件格式标识与版本 */
 const FORMAT = 'starflame-board-settings'
@@ -143,6 +144,7 @@ function notify(text: string, color = 'success'): void {
 function pick<T extends Record<string, unknown>>(source: T): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(source ?? {})) {
+    // 只排除「每台设备各自生效」的项（主题、背景图等）：它们进备份没有意义
     if (LOCAL_ONLY_KEYS.includes(key) || getDef(key)?.local) continue
     out[key] = value
   }
@@ -152,7 +154,8 @@ function pick<T extends Record<string, unknown>>(source: T): Record<string, unkn
 async function loadSettings(): Promise<void> {
   try {
     const me = await getData<{ settings: Record<string, unknown> }>('/device/me')
-    remoteSettings.value = pick(me.settings ?? {})
+    // 非一体机：本机改动也要能导出（否则备份里看不到自己改过的项）
+    remoteSettings.value = pick(mergeLocalSettings(me.settings))
   } catch (e) {
     error.value = e instanceof Error ? e.message : '读取设置失败'
   }
@@ -254,7 +257,13 @@ async function applyImport(): Promise<void> {
   importing.value = true
   error.value = ''
   try {
-    await patchData('/board/settings', { settings: confirm.settings })
+    const savedToCloud = await saveSettingsPatch(confirm.settings)
+    if (!savedToCloud) {
+      markSettingsDirty()
+      confirm.open = false
+      notify('已导入 ' + confirm.keys.length + ' 项设置（只保存在本机）')
+      return
+    }
     markSettingsDirty()
     confirm.open = false
     await loadSettings()

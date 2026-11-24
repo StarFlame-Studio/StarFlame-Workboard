@@ -48,7 +48,7 @@ export const SETTING_DEFS: SettingDef[] = [
   num('liquid.redOffset', '红通道偏移', 0, -40, 40, 1, 'mdi-record-circle-outline', '与另两个通道的差值决定色散强弱'),
   num('liquid.greenOffset', '绿通道偏移', 10, -40, 40, 1, 'mdi-record-circle-outline', ''),
   num('liquid.blueOffset', '蓝通道偏移', 20, -40, 40, 1, 'mdi-record-circle-outline', '三个偏移越接近，彩边越弱'),
-  num('liquid.backdropBlur', '背景模糊（px）', 3.5, 0, 12, 0.5, 'mdi-blur-left', '折射层背后的模糊半径，越大文字越好读'),
+  num('liquid.backdropBlur', '背景模糊（px）', 3.5, 0, 12, 0.5, 'mdi-blur-linear', '折射层背后的模糊半径，越大文字越好读'),
   num('liquid.frostLight', '霜层不透明度（亮色）', 0.36, 0, 1, 0.02, 'mdi-circle-opacity', '卡片底色不透明度，越大越不透'),
   num('liquid.frostDark', '霜层不透明度（暗色）', 0.3, 0, 1, 0.02, 'mdi-circle-opacity', ''),
   num('liquid.rimLight', '描边亮度（亮色）', 0.72, 0, 1, 0.02, 'mdi-border-color', '卡片 1px 描边的白色不透明度'),
@@ -162,7 +162,7 @@ export const SETTING_DEFS: SettingDef[] = [
 
 // 主题相关的参数一律本机化：不同设备屏幕/亮度/显卡不同，同一套数值同步过去只会互相覆盖
 // - theme.card / liquid.*：卡片材质与液态玻璃参数
-// - background.*：壁纸、模糊与遮罩（同一张 5MB 壁纸同步给所有设备既占带宽也拖慢首屏）
+// - background.*：壁纸、模糊与遮罩（同一张壁纸同步给所有设备既占带宽也拖慢首屏，故只存本机）
 for (const def of SETTING_DEFS) {
   if (def.key === 'theme.card' || def.key.startsWith('liquid.') || def.key.startsWith('background.')) {
     def.local = true

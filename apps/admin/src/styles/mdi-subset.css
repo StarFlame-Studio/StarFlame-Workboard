@@ -315,6 +315,9 @@
 .mdi-refresh::before {
   content: "\F0450";
 }
+.mdi-send::before {
+  content: "\F048A";
+}
 .mdi-star::before {
   content: "\F04CE";
 }

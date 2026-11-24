@@ -11,8 +11,8 @@
         <v-icon start size="small">{{ syncIcon }}</v-icon>
         {{ syncText }}
       </v-chip>
-      <v-btn v-if="!isMobile" :loading="saving" class="mr-2" prepend-icon="mdi-cloud-upload" variant="tonal" @click="saveAll">立即同步</v-btn>
-      <v-btn v-else :loading="saving" aria-label="立即同步" class="mr-1" icon="mdi-cloud-upload" title="立即同步" variant="tonal" @click="saveAll" />
+      <v-btn v-if="!isMobile" :loading="saving" class="mr-2" prepend-icon="mdi-cloud-upload" variant="tonal" @click="saveAll">{{ settingsCloudSyncEnabled ? '立即同步' : '保存设置' }}</v-btn>
+      <v-btn v-else :loading="saving" :aria-label="settingsCloudSyncEnabled ? '立即同步' : '保存设置'" class="mr-1" icon="mdi-cloud-upload" :title="settingsCloudSyncEnabled ? '立即同步' : '保存设置'" variant="tonal" @click="saveAll" />
     </v-app-bar>
 
     <v-navigation-drawer v-model="drawer" :permanent="!isMobile" :temporary="isMobile">
@@ -54,7 +54,9 @@
 
           <settings-card icon="mdi-alert-circle-outline" title="提示">
             <v-alert class="mb-2" density="compact" type="info" variant="tonal">
-              设置会自动保存到班级云端，同一班级的所有大屏同步生效。
+              {{ settingsCloudSyncEnabled
+                ? '设置会自动保存到班级云端，同一班级的所有大屏同步生效。'
+                : '当前设备不是一体机（手机 / 平板 / 电脑）：设置只保存在本机，不会同步到班级云端；班级设置请在一体机上修改。' }}
             </v-alert>
             <v-alert density="compact" type="warning" variant="tonal">
               请不要使用浏览器清除站点数据，否则会导致本地配置丢失（云端数据不受影响）。
@@ -97,7 +99,7 @@
 
         <!-- 服务器 -->
         <template v-else-if="activeTab === 'server'">
-          <data-source-card :provider="String(settings['server.provider'] ?? 'starflame-api')" @provider-changed="(v) => (settings['server.provider'] = v)" />
+          <data-source-card :provider="String(settings['server.provider'] ?? 'starflame-api')" @provider-changed="(v) => onSettingUpdate('server.provider', v)" />
           <kv-data-card />
         </template>
 
@@ -248,6 +250,7 @@ import FormSkeleton from '@/components/skeleton/FormSkeleton.vue'
 import { syncUpdateSchedule } from '@/lib/updateScheduleSync'
 import { requestAdvancedTutorialMenu, requestBasicTutorial } from '@/lib/tutorial'
 import { isLocalSettingKey, localSettings, writeLocalSetting } from '@/lib/localSettings'
+import { settingsCloudSyncEnabled } from '@/lib/settingsScope'
 import { applyStoredCardTheme } from '@/lib/cardTheme'
 
 const session = useSessionStore()
@@ -378,6 +381,8 @@ const syncState = ref<SyncState>('idle')
 let syncTimer: number | undefined
 
 const syncText = computed(() => {
+  // 非一体机：设置只保存在本机，不参与云端同步
+  if (!settingsCloudSyncEnabled.value) return '本机设置'
   switch (syncState.value) {
     case 'pending': return '待同步'
     case 'saving': return '同步中…'
@@ -388,6 +393,7 @@ const syncText = computed(() => {
 })
 
 const syncColor = computed(() => {
+  if (!settingsCloudSyncEnabled.value) return 'default'
   switch (syncState.value) {
     case 'pending': return 'warning'
     case 'saving': return 'info'
@@ -398,6 +404,7 @@ const syncColor = computed(() => {
 })
 
 const syncIcon = computed(() => {
+  if (!settingsCloudSyncEnabled.value) return 'mdi-cloud-off-outline'
   switch (syncState.value) {
     case 'pending': return 'mdi-cloud-clock-outline'
     case 'saving': return 'mdi-cloud-sync-outline'
@@ -417,7 +424,8 @@ function onThemeChange(value: unknown): void {
 
 function onSettingUpdate(key: string, value: unknown): void {
   settings[key] = value
-  // 本机设置（卡片主题、液态玻璃参数）：只存 localStorage，不上云、不触发同步
+  // 本机设置（卡片主题、液态玻璃参数等），以及手机 / 平板 / 老师电脑上的所有设置：
+  // 只存 localStorage，不上云、不触发同步
   if (isLocalSettingKey(key)) {
     writeLocalSetting(key, value)
     applyStoredCardTheme()
@@ -444,6 +452,12 @@ async function flushSettings(): Promise<boolean> {
     window.clearTimeout(syncTimer)
     syncTimer = undefined
   }
+  // 非一体机不参与云端同步：改动在 onSettingUpdate 里已经写进本机（localStorage）
+  if (!settingsCloudSyncEnabled.value) {
+    dirty.value = false
+    syncState.value = 'idle'
+    return true
+  }
   if (!dirty.value) {
     syncState.value = 'saved'
     return true
@@ -456,7 +470,7 @@ async function flushSettings(): Promise<boolean> {
     for (const key of Object.keys(settings)) {
       if (key === 'homeworkTemplate') continue
       // 本机设置（如主题）不上云、不入待同步队列
-      if (getDef(key)?.local) continue
+      if (key === 'theme.mode' || isLocalSettingKey(key)) continue
       payload[key] = settings[key]
     }
     // 合并写入，避免只传部分字段时覆盖掉其他端刚改的值
@@ -524,9 +538,6 @@ async function loadAll(): Promise<void> {
     for (const [key, value] of Object.entries(localSettings.value)) {
       if (isLocalSettingKey(key)) settings[key] = value
     }
-    themeMode.value = currentTheme()
-    applyTheme(themeMode.value as ThemeMode)
-    studentCount.value = Array.isArray(board.students) ? board.students.length : 0
     dirty.value = false
     syncState.value = 'idle'
   } catch (e) {
@@ -538,6 +549,11 @@ async function loadAll(): Promise<void> {
 
 async function saveAll(): Promise<void> {
   if (saving.value) return
+  // 非一体机：改动在改动当时就写进本机了，这里只给个反馈，不写云端
+  if (!settingsCloudSyncEnabled.value) {
+    notify('设置已保存在本机（只有一体机会同步到班级云端）')
+    return
+  }
   dirty.value = true
   const ok = await flushSettings()
   if (ok) notify('设置已同步到云端')

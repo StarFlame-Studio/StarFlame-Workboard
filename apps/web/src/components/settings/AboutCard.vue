@@ -74,6 +74,9 @@
               <span class="text-caption text-medium-emphasis">
                 自动检测会按屏幕尺寸与触摸能力判断一体机；判断不准时可在这里手动指定（仅本机生效）。
               </span>
+              <span v-if="isSmallDeviceMode" class="text-caption text-warning d-block mt-1">
+                当前是手机 / 平板模式，一体机模式已强制关闭；这类设备上的设置改动也只保存在本机。
+              </span>
             </td>
           </tr>
           <tr>
@@ -98,7 +101,7 @@
               </template>
             </td>
           </tr>
-          <tr><td class="text-medium-emphasis label-cell">版本</td><td>{{ version }}</td></tr>
+          <tr><td class="text-medium-emphasis label-cell">版本</td><td>{{ appVersion }}</td></tr>
           <tr>
             <td class="text-medium-emphasis label-cell">备案</td>
             <td>
@@ -116,8 +119,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
 
+import { appVersion, appVersionCode, loadAppVersion } from '@/lib/appVersion'
 import { useSessionStore } from '@/stores/session'
 import { apiBase } from '@/lib/api'
 import GiteeIcon from '@/components/GiteeIcon.vue'
@@ -126,6 +129,7 @@ import { resolveWebOrigin } from '@/lib/webOrigin'
 import {
   DEVICE_MODE_LABEL,
   deviceMode,
+  isSmallDeviceMode,
   overrideRef,
   setDeviceModeOverride,
   type DeviceModeOverride,
@@ -141,11 +145,15 @@ import {
   type SfUpdateStatus,
 } from '@/lib/platform'
 
-const modeOptions: { title: string; value: DeviceModeOverride }[] = [
+const modeOptions = computed<Array<{ title: string; value: DeviceModeOverride; props?: { disabled: boolean } }>>(() => [
   { title: '自动检测', value: 'auto' },
-  { title: '一体机模式', value: 'terminal' },
+  {
+    title: isSmallDeviceMode.value ? '一体机模式（手机 / 平板下已强制关闭）' : '一体机模式',
+    value: 'terminal',
+    props: { disabled: isSmallDeviceMode.value },
+  },
   { title: '桌面模式', value: 'desktop' },
-]
+])
 
 function onModeChange(value: unknown): void {
   if (value === 'auto' || value === 'terminal' || value === 'desktop') setDeviceModeOverride(value)
@@ -164,8 +172,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 const session = useSessionStore()
 // 桌面端页面跑在 app://local，这里显示真正可分发的网页地址
 const origin = resolveWebOrigin()
-const version = APP_VERSION
-const versionCode = String(APP_VERSION_CODE)
+// 桌面端读安装包真实版本，网页端用构建时常量（见 lib/appVersion.ts）
 
 const info = ref<SfAppInfo | null>(null)
 
@@ -174,7 +181,7 @@ const platformText = computed(() => {
   const channel = info.value?.channel ?? ''
   const label = CHANNEL_LABEL[channel] ?? channel
   const electron = info.value?.electron ?? '-'
-  return `桌面端 · ${label} · Electron ${electron} · 版本 ${info.value?.version ?? version}（${versionCode}）`
+  return `桌面端 · ${label} · Electron ${electron} · 版本 ${info.value?.version ?? appVersion.value}（${appVersionCode.value}）`
 })
 
 const updateState = ref<SfUpdateStatus['state']>('idle')
@@ -254,7 +261,8 @@ async function runUpdateCheck(): Promise<void> {
 onMounted(async () => {
   if (!isDesktop) return
   unsubscribe = onUpdateStatus(applyStatus)
-  info.value = await appInfo()
+  const [appInfoValue] = await Promise.all([appInfo(), loadAppVersion()])
+  info.value = appInfoValue
 })
 
 onBeforeUnmount(() => {

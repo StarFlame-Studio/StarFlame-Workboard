@@ -168,8 +168,8 @@ body {
 
 .v-btn--variant-flat.bg-primary,
 .v-btn.bg-primary {
-  background-image: var(--grad-brand) !important;
-  background-color: var(--brand-2) !important;
+  background-image: var(--grad-brand-btn) !important;
+  background-color: #b8370e !important;
   box-shadow: var(--shadow-warm);
 }
 
@@ -197,6 +197,84 @@ body {
 .v-btn--disabled {
   filter: grayscale(0.35);
   opacity: 0.65;
+}
+
+/*
+ * 亮色主题下彩色按钮 / 胶囊 / 提示的可读性修正。
+ *
+ * 亮色主题的品牌色（primary #f4511e、success #2e9e63、warning #e08a00、error #e5484d、
+ * secondary #8a8078、info #2f7fd1）本来是按大面积色块挑的，直接拿来当按钮文字色时，
+ * 对比度只有 2.7–4.1（WCAG AA 正文要求 4.5），小字号按钮看上去就是"发灰、看不清"。
+ * 这里只在亮色主题里把它们换成同色系加深一档的颜色（对比度 4.5–5.5）；
+ * 深色主题的语义色本身够亮，另见下面的半透明底色调整。
+ */
+.v-theme--light {
+  --sf-accent-primary: #bc3e17;
+  --sf-accent-secondary: #736a64;
+  --sf-accent-success: #237a4c;
+  --sf-accent-warning: #985e00;
+  --sf-accent-error: #be3c40;
+  --sf-accent-info: #286db4;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-primary {
+  color: var(--sf-accent-primary) !important;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-secondary {
+  color: var(--sf-accent-secondary) !important;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-success {
+  color: var(--sf-accent-success) !important;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-warning {
+  color: var(--sf-accent-warning) !important;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-error {
+  color: var(--sf-accent-error) !important;
+}
+
+.v-theme--light :is(.v-btn, .v-chip, .v-alert, .v-list-item).text-info {
+  color: var(--sf-accent-info) !important;
+}
+
+/* 纯色底（elevated / flat）按钮同理：底色加深，白字才看得清 */
+.v-theme--light .v-btn.bg-secondary {
+  background-color: var(--sf-accent-secondary) !important;
+}
+
+.v-theme--light .v-btn.bg-success {
+  background-color: var(--sf-accent-success) !important;
+}
+
+.v-theme--light .v-btn.bg-warning {
+  background-color: var(--sf-accent-warning) !important;
+}
+
+.v-theme--light .v-btn.bg-error {
+  background-color: var(--sf-accent-error) !important;
+}
+
+.v-theme--light .v-btn.bg-info {
+  background-color: var(--sf-accent-info) !important;
+}
+
+/*
+ * 深色主题的语义色本身够亮（在卡片底色上 5.3–8.3），但半透明色底会把文字对比度压下去：
+ * "已激活/同色底" 的不透明度在深色下是 0.12 × 2 = 0.24（--v-theme-overlay-multiplier=2），
+ * 彩色文字落在同色底上只剩 4.1–4.4，胶囊和 tonal 按钮会发糊。
+ * 这里把深色下的已激活不透明度降回 12%，文字保持原来的亮色，对比度回到 5.1–5.6。
+ */
+.v-theme--dark {
+  --v-activated-opacity: 0.12;
+}
+
+/* 深色主题的 secondary（#9b8f83）配白字只有 3.16，纯色底按钮改用加深一档的灰（白字 5.96） */
+.v-theme--dark .v-btn.bg-secondary {
+  background-color: #6b625b !important;
 }
 
 /* ------------------------------ 表单控件 ------------------------------ */

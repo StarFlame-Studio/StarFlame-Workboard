@@ -6,10 +6,12 @@ import {
   classUpdateSchema,
   noticeBatchSchema,
   noticeBroadcastSchema,
+  noticeDeleteBatchSchema,
   accessCodeCreateSchema,
   accessCodeUpdateSchema,
   userCreateSchema,
   userUpdateSchema,
+  type DeviceRole,
 } from '@starflame/shared'
 import { db } from '../db/index.js'
 import {
@@ -116,20 +118,74 @@ function requireStaff(req: Parameters<typeof requireAdmin>[0], res: Parameters<t
 
 router.use(requireUser, requireStaff, readLimiter)
 
+type StaffRequest = Parameters<typeof requireAdmin>[0]
+
+/** 超级管理员（owner）：可以跨班级查看，并管理用户、审计与系统设置 */
+function isOwner(req: StaffRequest): boolean {
+  return req.user?.role === 'owner'
+}
+
+/** 管理员可管理的班级：自己创建的 + 已加入的；超级管理员返回 null 表示全部班级 */
+async function accessibleClassIds(req: StaffRequest): Promise<string[] | null> {
+  if (isOwner(req)) return null
+  const userId = req.user!.id
+  const owned = await db.select({ id: classes.id }).from(classes).where(eq(classes.ownerId, userId))
+  const joined = await db
+    .select({ classId: classMembers.classId })
+    .from(classMembers)
+    .where(eq(classMembers.userId, userId))
+  return Array.from(new Set([...owned.map((row) => row.id), ...joined.map((row) => row.classId)]))
+}
+
+/** 班级级权限：超级管理员放行；其他人必须是该班负责人或成员（加入班级后即拥有该班全部权限） */
+async function requireClassAccess(req: StaffRequest, classId: string): Promise<void> {
+  if (isOwner(req)) return
+  const rows = await db.select({ ownerId: classes.ownerId }).from(classes).where(eq(classes.id, classId)).limit(1)
+  if (!rows[0]) throw notFound('班级不存在')
+  if (rows[0].ownerId === req.user!.id) return
+  const member = await db
+    .select({ userId: classMembers.userId })
+    .from(classMembers)
+    .where(and(eq(classMembers.classId, classId), eq(classMembers.userId, req.user!.id)))
+    .limit(1)
+  if (member.length === 0) throw forbidden('无权管理该班级')
+}
+
+/** owner 专属接口守卫：用户、审计与系统设置只有超级管理员可用 */
+function requireOwner(req: StaffRequest, res: Parameters<typeof requireAdmin>[1], next: Parameters<typeof requireAdmin>[2]): void {
+  if (!isOwner(req)) {
+    next(forbidden('只有超级管理员可以访问'))
+    return
+  }
+  next()
+}
+
 function pageParams(query: Record<string, unknown>) {
   const page = Math.max(1, Number(query.page ?? 1) || 1)
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 20) || 20))
   return { page, pageSize, offset: (page - 1) * pageSize }
 }
 
-router.get('/overview', async (_req, res, next) => {
+router.get('/overview', async (req, res, next) => {
   try {
-    const [classCount] = await db.select({ value: count() }).from(classes).where(eq(classes.status, 'active'))
-    const [userCount] = await db.select({ value: count() }).from(users).where(eq(users.status, 'active'))
-    const [deviceCount] = await db.select({ value: count() }).from(devices).where(eq(devices.status, 'active'))
+    // 管理员只统计自己创建/加入的班级；超级管理员统计全站
+    const scopedIds = await accessibleClassIds(req)
+    const classScope = scopedIds ? inArray(classes.id, scopedIds.length > 0 ? scopedIds : ['__none__']) : undefined
+    const deviceScope = scopedIds ? inArray(devices.classId, scopedIds.length > 0 ? scopedIds : ['__none__']) : undefined
+    const [classCount] = await db.select({ value: count() }).from(classes).where(and(eq(classes.status, 'active'), classScope))
+    const userCount = isOwner(req)
+      ? (await db.select({ value: count() }).from(users).where(eq(users.status, 'active')))[0]
+      : { value: 0 }
+    const [deviceCount] = await db.select({ value: count() }).from(devices).where(and(eq(devices.status, 'active'), deviceScope))
     const today = new Date().toISOString().slice(0, 10)
-    const [homeworkCount] = await db.select({ value: count() }).from(homework).where(eq(homework.dueDate, today))
-    const [studentCount] = await db.select({ value: count() }).from(students).where(eq(students.status, 'active'))
+    const [homeworkCount] = await db
+      .select({ value: count() })
+      .from(homework)
+      .where(and(eq(homework.dueDate, today), scopedIds ? inArray(homework.classId, scopedIds.length > 0 ? scopedIds : ['__none__']) : undefined))
+    const [studentCount] = await db
+      .select({ value: count() })
+      .from(students)
+      .where(and(eq(students.status, 'active'), scopedIds ? inArray(students.classId, scopedIds.length > 0 ? scopedIds : ['__none__']) : undefined))
     ok(res, {
       classCount: classCount?.value ?? 0,
       userCount: userCount?.value ?? 0,
@@ -147,19 +203,11 @@ router.get('/classes', async (req, res, next) => {
   try {
     const { page, pageSize, offset } = pageParams(req.query as Record<string, unknown>)
     const keyword = String(req.query.keyword ?? '').trim()
-    const isSuperUser = req.user!.role === 'owner' || req.user!.role === 'admin'
-    const memberClassIds = isSuperUser
-      ? null
-      : (
-          await db
-            .select({ classId: classMembers.classId })
-            .from(classMembers)
-            .where(eq(classMembers.userId, req.user!.id))
-        ).map((row) => row.classId)
+    const accessible = await accessibleClassIds(req)
 
     const filters = [eq(classes.status, 'active')]
     if (keyword) filters.push(like(classes.name, '%' + keyword + '%'))
-    if (memberClassIds) filters.push(inArray(classes.id, memberClassIds.length > 0 ? memberClassIds : ['__none__']))
+    if (accessible) filters.push(inArray(classes.id, accessible.length > 0 ? accessible : ['__none__']))
     const where = and(...filters)
 
     const items = await db
@@ -178,7 +226,8 @@ router.get('/classes', async (req, res, next) => {
       .from(classes)
       .leftJoin(users, eq(users.id, classes.ownerId))
       .where(where)
-      .orderBy(desc(classes.createdAt))
+      // 同一秒创建的班级排序不稳定，补一个 id 兜底，避免翻页时漏行 / 重复行
+      .orderBy(desc(classes.createdAt), desc(classes.id))
       .limit(pageSize)
       .offset(offset)
 
@@ -194,6 +243,20 @@ function randomAccessCode(): string {
   return newAccessCode()
 }
 
+/** 生成一个本班尚未使用过的授权码；同一班级内不允许重复，跨班级可以重复 */
+async function uniqueAccessCode(classId: string): Promise<string> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const candidate = randomAccessCode()
+    const dup = await db
+      .select({ id: classAccessCodes.id })
+      .from(classAccessCodes)
+      .where(and(eq(classAccessCodes.classId, classId), eq(classAccessCodes.code, candidate)))
+      .limit(1)
+    if (dup.length === 0) return candidate
+  }
+  throw conflict('授权码生成失败，请重试')
+}
+
 router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (req, res, next) => {
   try {
     const input = req.validated as {
@@ -204,6 +267,8 @@ router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (re
       classUid: string
       ownerId?: string
     }
+    // 管理员只能在自建班级里担任负责人；指定他人负责需要超级管理员
+    if (input.ownerId && input.ownerId !== req.user!.id && !isOwner(req)) throw forbidden('只有超级管理员可以指定班级负责人')
     const ownerId = input.ownerId ?? req.user!.id
     const ownerRows = await db.select().from(users).where(eq(users.id, ownerId)).limit(1)
     if (!ownerRows[0]) throw badRequest('指定的负责人不存在')
@@ -217,6 +282,11 @@ router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (re
 
     const classId = newId()
     const terminalCode = randomAccessCode()
+    // 建班时一并生成教师授权码：老师用手机/办公室电脑登录时直接可用，不用再进看板单独创建
+    let teacherCode = randomAccessCode()
+    for (let attempt = 0; attempt < 6 && teacherCode === terminalCode; attempt += 1) {
+      teacherCode = randomAccessCode()
+    }
     await db.transaction(async (tx) => {
       await tx.insert(classes).values({
         id: classId,
@@ -240,6 +310,16 @@ router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (re
         enabled: true,
         createdBy: req.user!.id,
       })
+      await tx.insert(classAccessCodes).values({
+        id: newId(),
+        classId,
+        code: teacherCode,
+        role: 'teacher',
+        permission: 'write',
+        label: '教师 · 默认授权码',
+        enabled: true,
+        createdBy: req.user!.id,
+      })
     })
     await seedSubjects(classId)
     await writeAudit({
@@ -257,6 +337,7 @@ router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (re
       classCode,
       classUid,
       terminalAccessCode: terminalCode,
+      teacherAccessCode: teacherCode,
       class: { id: classId, name: input.name, grade: input.grade ?? null, status: 'active', classCode, classUid },
     })
   } catch (error) {
@@ -268,6 +349,7 @@ router.post('/classes', writeLimiter, validateBody(classCreateSchema), async (re
 router.get('/classes/:id', async (req, res, next) => {
   try {
     const classId = param(req, 'id')
+    await requireClassAccess(req, classId)
     const rows = await db.select().from(classes).where(eq(classes.id, classId)).limit(1)
     const row = rows[0]
     if (!row) throw notFound('班级不存在')
@@ -303,6 +385,7 @@ router.get('/classes/:id', async (req, res, next) => {
 router.patch('/classes/:id', writeLimiter, validateBody(classUpdateSchema), async (req, res, next) => {
   try {
     const classId = param(req, 'id')
+    await requireClassAccess(req, classId)
     const input = req.validated as Record<string, unknown>
     const rows = await db.select().from(classes).where(eq(classes.id, classId)).limit(1)
     if (!rows[0]) throw notFound('班级不存在')
@@ -351,6 +434,7 @@ router.patch('/classes/:id', writeLimiter, validateBody(classUpdateSchema), asyn
 router.delete('/classes/:id', writeLimiter, async (req, res, next) => {
   try {
     const classId = param(req, 'id')
+    await requireClassAccess(req, classId)
     await db.update(classes).set({ status: 'archived' }).where(eq(classes.id, classId))
     await writeAudit({
       actorType: 'user',
@@ -386,6 +470,7 @@ function accessCodePayload(row: typeof classAccessCodes.$inferSelect) {
 router.get('/classes/:id/access-codes', async (req, res, next) => {
   try {
     const classId = param(req, 'id')
+    await requireClassAccess(req, classId)
     const rows = await db
       .select()
       .from(classAccessCodes)
@@ -411,6 +496,7 @@ router.get('/classes/:id/access-codes', async (req, res, next) => {
 router.post('/classes/:id/access-codes', writeLimiter, validateBody(accessCodeCreateSchema), async (req, res, next) => {
   try {
     const classId = param(req, 'id')
+    await requireClassAccess(req, classId)
     const input = req.validated as {
       code?: string
       role: 'terminal' | 'teacher' | 'student' | 'parent'
@@ -488,6 +574,7 @@ router.patch('/access-codes/:id', writeLimiter, validateBody(accessCodeUpdateSch
     const rows = await db.select().from(classAccessCodes).where(eq(classAccessCodes.id, id)).limit(1)
     const code = rows[0]
     if (!code) throw notFound('授权码不存在')
+    await requireClassAccess(req, code.classId)
 
     const patch: Record<string, unknown> = {}
     if (typeof input.code === 'string' && input.code.trim() !== code.code) {
@@ -541,6 +628,7 @@ router.delete('/access-codes/:id', writeLimiter, async (req, res, next) => {
     const rows = await db.select().from(classAccessCodes).where(eq(classAccessCodes.id, id)).limit(1)
     const code = rows[0]
     if (!code) throw notFound('授权码不存在')
+    await requireClassAccess(req, code.classId)
 
     // 硬删除 + 使用该授权码的设备立即下线
     await db.transaction(async (tx) => {
@@ -565,7 +653,63 @@ router.delete('/access-codes/:id', writeLimiter, async (req, res, next) => {
   }
 })
 
-router.get('/users', async (req, res, next) => {
+/**
+ * 一键重置授权码：在同一个授权码条目上换成一个系统随机的新码。
+ * 旧码立即失效；已经用这个码登录的设备一并吊销，必须用新码重新登录。
+ * 这样授权码外泄时不用先删后建，也不会丢掉备注、身份、权限和有效期。
+ */
+router.post('/access-codes/:id/reset', writeLimiter, async (req, res, next) => {
+  try {
+    const id = param(req, 'id')
+    const rows = await db.select().from(classAccessCodes).where(eq(classAccessCodes.id, id)).limit(1)
+    const code = rows[0]
+    if (!code) throw notFound('授权码不存在')
+    await requireClassAccess(req, code.classId)
+
+    const nextCode = await uniqueAccessCode(code.classId)
+    const bound = await db
+      .select({ id: devices.id })
+      .from(devices)
+      .where(and(eq(devices.accessCodeId, id), eq(devices.status, 'active')))
+
+    await db.transaction(async (tx) => {
+      await tx.update(classAccessCodes).set({ code: nextCode }).where(eq(classAccessCodes.id, id))
+      if (bound.length > 0) {
+        await tx
+          .update(devices)
+          .set({ status: 'revoked', tokenHash: null })
+          .where(and(eq(devices.accessCodeId, id), eq(devices.status, 'active')))
+      }
+    })
+
+    let disconnected = 0
+    if (bound.length > 0) {
+      disconnected = disconnectDeviceSockets(bound.map((row) => row.id))
+      for (const row of bound) forgetDeviceActivity(row.id)
+    }
+
+    await writeAudit({
+      actorType: 'user',
+      actorId: req.user!.id,
+      classId: code.classId,
+      action: 'accessCode.reset',
+      target: id,
+      detail: { from: code.code, to: nextCode, revokedDevices: bound.length },
+      ip: clientIp(req),
+    })
+
+    const updated = await db.select().from(classAccessCodes).where(eq(classAccessCodes.id, id)).limit(1)
+    ok(res, {
+      ...accessCodePayload(updated[0]!),
+      revokedDevices: bound.length,
+      disconnected,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/users', requireOwner, async (req, res, next) => {
   try {
     const { page, pageSize, offset } = pageParams(req.query as Record<string, unknown>)
     const items = await db
@@ -590,7 +734,7 @@ router.get('/users', async (req, res, next) => {
   }
 })
 
-router.post('/users', writeLimiter, validateBody(userCreateSchema), async (req, res, next) => {
+router.post('/users', requireOwner, writeLimiter, validateBody(userCreateSchema), async (req, res, next) => {
   try {
     const input = req.validated as { username: string; email?: string; password: string; name: string; role: 'owner' | 'admin' | 'teacher' }
     const dup = await db.select({ id: users.id }).from(users).where(eq(users.username, input.username)).limit(1)
@@ -625,7 +769,7 @@ router.post('/users', writeLimiter, validateBody(userCreateSchema), async (req, 
   }
 })
 
-router.patch('/users/:id', writeLimiter, validateBody(userUpdateSchema), async (req, res, next) => {
+router.patch('/users/:id', requireOwner, writeLimiter, validateBody(userUpdateSchema), async (req, res, next) => {
   try {
     const userId = param(req, 'id')
     const input = req.validated as { name?: string; email?: string | null; role?: string; status?: string; password?: string }
@@ -663,7 +807,7 @@ router.patch('/users/:id', writeLimiter, validateBody(userUpdateSchema), async (
   }
 })
 
-router.delete('/users/:id', writeLimiter, async (req, res, next) => {
+router.delete('/users/:id', requireOwner, writeLimiter, async (req, res, next) => {
   try {
     const userId = param(req, 'id')
     if (userId === req.user!.id) throw badRequest('不能删除自己')
@@ -688,6 +832,31 @@ router.delete('/users/:id', writeLimiter, async (req, res, next) => {
   }
 })
 
+/** 后台设备列表「设备类型」筛选取值：与授权码身份一致，另加游客 */
+const DEVICE_ROLE_FILTERS = new Set(['terminal', 'teacher', 'student', 'parent', 'guest'])
+
+/** 后台设备列表「平台类型」筛选取值：由 UA 归类 */
+type DevicePlatformKind = 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'
+const DEVICE_PLATFORMS = new Set(['windows', 'macos', 'linux', 'android', 'ios', 'unknown'])
+
+/** 从 UA 归类平台：只用于后台列表筛选，粒度比后台详情弹窗的平台展示粗一级 */
+function devicePlatformKind(userAgent: string | null): DevicePlatformKind {
+  const ua = (userAgent ?? '').trim()
+  if (!ua) return 'unknown'
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  if (/Windows NT/.test(ua)) return 'windows'
+  if (/Mac OS X/.test(ua)) return 'macos'
+  if (/Linux/.test(ua)) return 'linux'
+  return 'unknown'
+}
+
+/** 「客户端形态」筛选：桌面客户端 / 网页端 / 未上报 */
+function deviceRuntimeKind(userAgent: string | null): 'desktop' | 'browser' | 'unknown' {
+  if (!(userAgent ?? '').trim()) return 'unknown'
+  return desktopClientVersion(userAgent) ? 'desktop' : 'browser'
+}
+
 /** 设备列表单次最多扫描的行数：在线状态含内存态，只能在应用层过滤，先限制扫描量 */
 const DEVICE_LIST_SCAN_LIMIT = 2000
 
@@ -699,9 +868,21 @@ router.get('/devices', async (req, res, next) => {
     const classId = typeof query.classId === 'string' ? query.classId : ''
     const keyword = typeof query.keyword === 'string' ? query.keyword.trim() : ''
     const statusFilter = query.status === 'online' || query.status === 'offline' ? query.status : ''
+    const roleFilter = typeof query.role === 'string' && DEVICE_ROLE_FILTERS.has(query.role) ? query.role : ''
+    const platformFilter =
+      typeof query.platform === 'string' && DEVICE_PLATFORMS.has(query.platform) ? query.platform : ''
+    const runtimeFilter =
+      query.runtime === 'desktop' || query.runtime === 'browser' || query.runtime === 'unknown'
+        ? (query.runtime as 'desktop' | 'browser' | 'unknown')
+        : ''
 
     const filters = [eq(devices.status, 'active')]
     if (classId) filters.push(eq(devices.classId, classId))
+    // 设备类型能在 SQL 里筛（devices.role），平台 / 客户端只能从 UA 归类，放到应用层过滤
+    if (roleFilter) filters.push(eq(devices.role, roleFilter as DeviceRole))
+    // 管理员只能看到自己创建/加入班级的设备；超级管理员看全部
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) filters.push(inArray(devices.classId, scopedIds.length > 0 ? scopedIds : ['__none__']))
     if (keyword) {
       const pattern = '%' + keyword + '%'
       filters.push(or(like(devices.name, pattern), like(devices.uuid, pattern), like(classes.name, pattern))!)
@@ -749,13 +930,19 @@ router.get('/devices', async (req, res, next) => {
         commandAck: command.ack,
       }
     })
-    const onlineCount = decorated.filter((row) => row.online).length
+    // 平台 / 客户端形态从 UA 归类，SQL 里筛不了，在应用层过滤后再算在线数、再分页
+    const visible = decorated.filter((row) => {
+      if (platformFilter && devicePlatformKind(row.userAgent) !== platformFilter) return false
+      if (runtimeFilter && deviceRuntimeKind(row.userAgent) !== runtimeFilter) return false
+      return true
+    })
+    const onlineCount = visible.filter((row) => row.online).length
     const matched =
       statusFilter === 'online'
-        ? decorated.filter((row) => row.online)
+        ? visible.filter((row) => row.online)
         : statusFilter === 'offline'
-          ? decorated.filter((row) => !row.online)
-          : decorated
+          ? visible.filter((row) => !row.online)
+          : visible
     const offset = (page - 1) * pageSize
     ok(res, {
       items: matched.slice(offset, offset + pageSize),
@@ -763,7 +950,7 @@ router.get('/devices', async (req, res, next) => {
       page,
       pageSize,
       onlineCount,
-      offlineCount: decorated.length - onlineCount,
+      offlineCount: visible.length - onlineCount,
       scanLimit: DEVICE_LIST_SCAN_LIMIT,
     })
   } catch (error) {
@@ -777,6 +964,7 @@ router.delete('/devices/:id', writeLimiter, async (req, res, next) => {
     const deviceId = param(req, 'id')
     const rows = await db.select().from(devices).where(eq(devices.id, deviceId)).limit(1)
     if (!rows[0]) throw notFound('设备不存在')
+    await requireClassAccess(req, rows[0].classId)
     await db.update(devices).set({ status: 'revoked', tokenHash: null }).where(eq(devices.id, deviceId))
     // 清掉内存活动痕迹，否则吊销后仍会在 3 分钟内显示在线
     forgetDeviceActivity(deviceId)
@@ -827,6 +1015,7 @@ router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
     const deviceId = param(req, 'id')
     const rows = await db.select().from(devices).where(eq(devices.id, deviceId)).limit(1)
     if (!rows[0]) throw notFound('设备不存在')
+    await requireClassAccess(req, rows[0].classId)
     if (rows[0].status !== 'active') throw badRequest('该设备已被吊销，无法远程卸载')
 
     // 旧版客户端没有接收 device.command 的代码：指令发过去它也不会执行，只会让后台一直等
@@ -871,6 +1060,99 @@ router.post('/devices/:id/uninstall', writeLimiter, async (req, res, next) => {
   }
 })
 
+/** 单次批量卸载上限：每台都要下发一次 socket 指令，过多会让一次请求变慢 */
+const DEVICE_BATCH_UNINSTALL_LIMIT = 200
+
+/**
+ * 批量远程卸载：对所选设备逐个走与单台卸载相同的判定（桌面客户端 + 版本够）。
+ * 不符合条件的设备不会让整个请求失败，而是收进 skipped 列表带回原因，
+ * 后台可以据此提示「已下发 X 台，Y 台是网页端，Z 台版本过低」。
+ */
+router.post('/devices/uninstall-batch', writeLimiter, async (req, res, next) => {
+  try {
+    const rawIds = (req.body as { ids?: unknown } | undefined)?.ids
+    if (!Array.isArray(rawIds)) throw badRequest('请选择要卸载的设备')
+    const ids = Array.from(
+      new Set(
+        rawIds
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0),
+      ),
+    )
+    if (ids.length === 0) throw badRequest('请选择要卸载的设备')
+    if (ids.length > DEVICE_BATCH_UNINSTALL_LIMIT) {
+      throw badRequest('单次最多卸载 ' + DEVICE_BATCH_UNINSTALL_LIMIT + ' 台设备')
+    }
+
+    const rows = await db.select().from(devices).where(inArray(devices.id, ids))
+    const active = rows.filter((row) => row.status === 'active')
+    if (active.length === 0) throw notFound('所选设备已不存在或已被吊销')
+    // 管理员只能卸载自己创建/加入班级的设备
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) {
+      const accessible = new Set(scopedIds)
+      if (active.some((row) => !accessible.has(row.classId))) throw forbidden('无权操作其他班级的设备')
+    }
+
+    const skipped: Array<{ id: string; name: string; reason: string }> = []
+    let delivered = 0
+    let pending = 0
+    for (const row of active) {
+      const clientVersion = desktopClientVersion(row.userAgent)
+      if (row.userAgent && !clientVersion) {
+        skipped.push({ id: row.id, name: row.name, reason: '不是桌面客户端（网页端），无法远程卸载' })
+        continue
+      }
+      if (clientVersion && compareVersionText(clientVersion, MIN_REMOTE_UNINSTALL_VERSION) < 0) {
+        skipped.push({
+          id: row.id,
+          name: row.name,
+          reason: '版本 v' + clientVersion + ' 过低，需先升级到 v' + MIN_REMOTE_UNINSTALL_VERSION + ' 或更高',
+        })
+        continue
+      }
+
+      const sent = sendDeviceCommand(row.id, { type: 'uninstall' })
+      if (sent === 0) queueDeviceCommand(row.id, { type: 'uninstall' })
+      if (sent > 0) delivered += 1
+      else pending += 1
+
+      // 与单台卸载一致：90 秒没有回执就记一条警告，便于区分「设备太旧」和「执行失败」
+      const dispatchedAt = deviceCommandState(row.id).dispatchedAt
+      if (sent > 0 && dispatchedAt) {
+        setTimeout(() => {
+          const state = deviceCommandState(row.id)
+          if (state.ack && state.ack.at >= dispatchedAt) return
+          logger.warn({ deviceId: row.id, name: row.name, dispatchedAt }, 'device command dispatched without ack in 90s')
+        }, 90 * 1000).unref?.()
+      }
+
+      await writeAudit({
+        actorType: 'user',
+        actorId: req.user!.id,
+        classId: row.classId,
+        action: 'device.uninstall',
+        target: row.id,
+        detail: { sent, pending: sent === 0, batch: true, name: row.name },
+        ip: clientIp(req),
+      })
+    }
+
+    const missing = ids.filter((id) => !active.some((row) => row.id === id))
+    ok(res, {
+      requested: ids.length,
+      accepted: active.length,
+      delivered,
+      pending,
+      missing: missing.length,
+      skipped,
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
 /** 单次批量吊销上限：与设备列表扫描上限保持一致量级，避免一次请求锁表过久 */
 const DEVICE_BATCH_REVOKE_LIMIT = 200
 
@@ -895,6 +1177,12 @@ router.post('/devices/revoke-batch', writeLimiter, async (req, res, next) => {
     const rows = await db.select().from(devices).where(inArray(devices.id, ids))
     const active = rows.filter((row) => row.status === 'active')
     if (active.length === 0) throw notFound('所选设备已不存在或已被吊销')
+    // 管理员只能吊销自己创建/加入班级的设备
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) {
+      const accessible = new Set(scopedIds)
+      if (active.some((row) => !accessible.has(row.classId))) throw forbidden('无权操作其他班级的设备')
+    }
 
     const activeIds = active.map((row) => row.id)
     await db.update(devices).set({ status: 'revoked', tokenHash: null }).where(inArray(devices.id, activeIds))
@@ -931,6 +1219,9 @@ router.get('/notices', async (req, res, next) => {
     const classId = typeof req.query.classId === 'string' ? req.query.classId : ''
     const filters = []
     if (classId) filters.push(eq(notices.classId, classId))
+    // 管理员只看自己创建/加入班级的通知
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) filters.push(inArray(notices.classId, scopedIds.length > 0 ? scopedIds : ['__none__']))
     if (rawKeyword) {
       const pattern = '%' + rawKeyword + '%'
       filters.push(or(like(notices.title, pattern), like(notices.content, pattern), like(classes.name, pattern))!)
@@ -998,6 +1289,11 @@ router.post('/notices/broadcast', writeLimiter, validateBody(noticeBroadcastSche
     if (!input.title.trim() && !input.content.trim()) throw badRequest('标题与内容不能同时为空')
     if (!input.pinned && !input.popup) throw badRequest('弹窗提醒与置顶通知至少需要开启一项')
     const targets = await resolveTargetClasses(input.classIds)
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) {
+      const accessible = new Set(scopedIds)
+      if (targets.some((target) => !accessible.has(target.id))) throw forbidden('无权向其他班级发送通知')
+    }
     const publishAt = new Date()
     const expireAt = input.expireAt ? new Date(input.expireAt) : null
     const actorId = req.user!.id
@@ -1053,6 +1349,11 @@ router.post('/notices/batch', writeLimiter, validateBody(noticeBatchSchema), asy
     const invalid = filled.find((item) => !item.pinned && !item.popup)
     if (invalid) throw badRequest('每条通知的弹窗提醒与置顶通知至少需要开启一项')
     const targets = await resolveTargetClasses(filled.map((item) => item.classId))
+    const scopedIds = await accessibleClassIds(req)
+    if (scopedIds) {
+      const accessible = new Set(scopedIds)
+      if (targets.some((target) => !accessible.has(target.id))) throw forbidden('无权向其他班级发送通知')
+    }
     const classNames = new Map(targets.map((row) => [row.id, row.name]))
     const publishAt = new Date()
     const actorId = req.user!.id
@@ -1095,6 +1396,7 @@ router.delete('/notices/:id', writeLimiter, async (req, res, next) => {
     const rows = await db.select().from(notices).where(eq(notices.id, noticeId)).limit(1)
     const row = rows[0]
     if (!row) throw notFound('通知不存在')
+    await requireClassAccess(req, row.classId)
     await db.delete(noticeReads).where(eq(noticeReads.noticeId, noticeId))
     await db.delete(notices).where(eq(notices.id, noticeId))
     broadcastChange({ classId: row.classId, scope: 'notice', action: 'delete', actor: req.user!.id })
@@ -1112,7 +1414,38 @@ router.delete('/notices/:id', writeLimiter, async (req, res, next) => {
     next(error)
   }
 })
-router.get('/audit-logs', async (req, res, next) => {
+
+/** 批量删除通知（跨班级管理入口）：逐条校验班级权限后删除，跳过已被删除的条目 */
+router.post('/notices/delete-batch', writeLimiter, validateBody(noticeDeleteBatchSchema), async (req, res, next) => {
+  try {
+    const ids = Array.from(new Set((req.body as { ids: string[] }).ids.map((id) => id.trim()).filter(Boolean)))
+    if (ids.length === 0) throw badRequest('请至少选择一条通知')
+    const rows = await db.select().from(notices).where(inArray(notices.id, ids))
+    for (const row of rows) await requireClassAccess(req, row.classId)
+    const removed = rows.map((row) => ({ id: row.id, classId: row.classId, title: row.title }))
+    const foundIds = rows.map((row) => row.id)
+    if (foundIds.length > 0) {
+      await db.delete(noticeReads).where(inArray(noticeReads.noticeId, foundIds))
+      await db.delete(notices).where(inArray(notices.id, foundIds))
+    }
+    // 按班级合并实时通知，避免一次删除几十条时逐条广播
+    const classIds = Array.from(new Set(removed.map((row) => row.classId)))
+    for (const classId of classIds) {
+      broadcastChange({ classId, scope: 'notice', action: 'delete', actor: req.user!.id })
+    }
+    await writeAudit({
+      actorType: 'user',
+      actorId: req.user!.id,
+      action: 'notice.delete.batch',
+      detail: { count: foundIds.length, ids: foundIds, missing: ids.filter((id) => !foundIds.includes(id)) },
+      ip: clientIp(req),
+    })
+    ok(res, { deleted: foundIds.length, ids: foundIds, missing: ids.length - foundIds.length })
+  } catch (error) {
+    next(error)
+  }
+})
+router.get('/audit-logs', requireOwner, async (req, res, next) => {
   try {
     const { page, pageSize, offset } = pageParams(req.query as Record<string, unknown>)
     const items = await db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(pageSize).offset(offset)
@@ -1123,7 +1456,7 @@ router.get('/audit-logs', async (req, res, next) => {
   }
 })
 
-router.get('/settings', async (_req, res, next) => {
+router.get('/settings', requireOwner, async (_req, res, next) => {
   try {
     const rows = await db.select().from(systemSettings)
     const map: Record<string, unknown> = {}
@@ -1134,7 +1467,7 @@ router.get('/settings', async (_req, res, next) => {
   }
 })
 
-router.put('/settings', writeLimiter, async (req, res, next) => {
+router.put('/settings', requireOwner, writeLimiter, async (req, res, next) => {
   try {
     const body = req.body as Record<string, unknown>
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('请求体必须是对象')

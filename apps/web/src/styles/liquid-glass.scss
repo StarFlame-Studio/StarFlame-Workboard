@@ -140,6 +140,25 @@ $lg-pills:
   }
 }
 
+/* ---------- 玻璃卡片里的列表 ----------
+   base.css 有一条全局的 `.v-list { background: var(--bg-card) !important }`（实色底），
+   会把卡片正文里的 v-list —— 比如「安装应用与授权」卡的权限列表 —— 整块盖成不透明，
+   液态玻璃的霜层与高光在正文区域被切掉一块，只剩卡片外圈是玻璃。
+   这里只在玻璃卡片内部把列表底打回透明；悬停 / 选中的底色也换成半透明。 */
+@each $card in $lg-cards {
+  html.ct-liquid #{$card} .v-list {
+    background: transparent !important;
+  }
+
+  html.ct-liquid #{$card} .v-list-item:hover {
+    background: rgba(var(--v-theme-on-surface), 0.06) !important;
+  }
+
+  html.ct-liquid #{$card} .v-list-item--active {
+    background: rgba(var(--v-theme-primary), 0.14) !important;
+  }
+}
+
 /* 卡片正文要压在折射层（.lg-layer，z-index: 0）之上；
    折射层自己是 .lg-layer，排除掉。 */
 @each $card in $lg-cards {

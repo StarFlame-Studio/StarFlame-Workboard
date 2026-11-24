@@ -73,7 +73,8 @@ router.post('/register', registerLimiter, validateBody(registerSchema), async (r
       email,
       passwordHash: await hashPassword(input.password),
       name: (input.name ?? '').trim() || username,
-      role: 'teacher',
+      // 注册即管理员：可创建班级、凭班级 ID 加入已有班级，并管理自己创建/加入的班级
+      role: 'admin',
       status: 'active',
     })
     const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1)

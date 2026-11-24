@@ -71,6 +71,7 @@
             <div class="row-actions">
               <v-btn size="small" variant="text" @click="openEdit(item)">编辑</v-btn>
               <v-btn size="small" variant="text" @click="toggleEnabled(item)">{{ item.enabled ? '停用' : '启用' }}</v-btn>
+              <v-btn size="small" variant="text" @click="askReset(item)">重置</v-btn>
               <v-btn color="error" size="small" variant="text" @click="askDelete(item)">删除</v-btn>
             </div>
           </template>
@@ -122,6 +123,41 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="resetOpen" max-width="460">
+      <v-card>
+        <v-card-title>重置授权码</v-card-title>
+        <v-card-text class="text-body-2">
+          确认把授权码 <b class="mono">{{ resetting?.code }}</b> 重置为一个新的随机码吗？
+          <div class="mt-2">旧码会立即失效；使用该授权码登录的设备会立即掉线，需要用新码重新登录。备注、身份、权限和有效期保持不变。</div>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="resetOpen = false">取消</v-btn>
+          <v-spacer />
+          <v-btn :loading="submitting" color="warning" variant="flat" @click="confirmReset">一键重置</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="resetResultOpen" max-width="460">
+      <v-card>
+        <v-card-title>新的授权码</v-card-title>
+        <v-card-text>
+          <v-text-field :model-value="resetResult?.code" label="授权码" readonly>
+            <template #append-inner>
+              <v-btn icon="mdi-content-copy" size="small" variant="text" @click="copy(resetResult?.code ?? '')" />
+            </template>
+          </v-text-field>
+          <div class="text-caption text-medium-emphasis">
+            旧授权码已失效。请把新码发给老师，或在教师端登录弹窗里用新的预配链接登录。
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="primary" variant="flat" @click="resetResultOpen = false">我已记录</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="deleteOpen" max-width="440">
       <v-card>
         <v-card-title>删除授权码</v-card-title>
@@ -150,6 +186,7 @@ import {
   deleteAccessCode,
   getAccessCodes,
   getClassDetail,
+  resetAccessCode,
   updateAccessCode,
   type AccessCode,
   type AccessPermission,
@@ -212,8 +249,12 @@ const submitting = ref(false)
 const error = ref('')
 const dialogOpen = ref(false)
 const deleteOpen = ref(false)
+const resetOpen = ref(false)
+const resetResultOpen = ref(false)
 const editing = ref<AccessCode | null>(null)
 const deleting = ref<AccessCode | null>(null)
+const resetting = ref<AccessCode | null>(null)
+const resetResult = ref<AccessCode | null>(null)
 const { toast, notify } = useToast()
 
 const form = reactive({
@@ -357,6 +398,29 @@ async function toggleEnabled(item: AccessCode): Promise<void> {
     notify(item.enabled ? '已停用，相关设备将掉线' : '已启用')
   } catch (e) {
     notify(e instanceof Error ? e.message : '操作失败', 'error')
+  }
+}
+
+function askReset(item: AccessCode): void {
+  resetting.value = item
+  resetOpen.value = true
+}
+
+async function confirmReset(): Promise<void> {
+  if (!resetting.value || submitting.value) return
+  submitting.value = true
+  try {
+    const updated = await resetAccessCode(resetting.value.id)
+    resetOpen.value = false
+    resetResult.value = updated
+    resetResultOpen.value = true
+    const revoked = updated.revokedDevices ?? 0
+    notify(revoked > 0 ? '已重置，' + revoked + ' 台设备已下线' : '已重置为新的随机授权码')
+    await load()
+  } catch (e) {
+    notify(e instanceof Error ? e.message : '重置失败', 'error')
+  } finally {
+    submitting.value = false
   }
 }
 

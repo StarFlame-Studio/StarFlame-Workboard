@@ -105,7 +105,7 @@
       </v-card-text>
 
       <v-card-actions class="pa-4">
-        <span class="build-hint">版本号 {{ APP_VERSION_CODE }}</span>
+        <span class="build-hint">版本号 {{ appVersionCode }}</span>
         <v-spacer />
         <v-btn variant="text" @click="dialog = false">关闭</v-btn>
       </v-card-actions>
@@ -115,8 +115,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { APP_VERSION, APP_VERSION_CODE } from '@starflame/shared'
 import ChangelogBody from '@/components/ChangelogBody.vue'
+import { appVersion, appVersionCode, loadAppVersion } from '@/lib/appVersion'
 import logoUrl from '@/assets/logo.svg'
 import { CHANGELOG, compareVersion, findChangelog, type ChangelogEntry } from '@/lib/changelog'
 import {
@@ -143,7 +143,7 @@ const CHANNEL_LABEL: Record<string, string> = {
 }
 
 /** 桌面端用安装包真实版本，网页端用构建时注入的版本（裸版本号，用于比较） */
-const displayVersion = computed(() => info.value?.version || APP_VERSION)
+const displayVersion = computed(() => appVersion.value)
 /** 展示用版本号，统一带 v 前缀（V1.1.0） */
 const versionText = computed(() => 'v' + displayVersion.value)
 const channelLabel = computed(() => CHANNEL_LABEL[info.value?.channel ?? 'dev'] ?? '桌面端')
@@ -187,6 +187,7 @@ onMounted(() => {
   stopStatus = onUpdateStatus((status) => {
     update.value = status
   })
+  void loadAppVersion()
   if (isDesktop) {
     void appInfo().then((value) => {
       info.value = value

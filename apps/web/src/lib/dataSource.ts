@@ -21,6 +21,8 @@ import {
 } from '@/lib/api'
 import type { PendingKind, PendingWrite, WriteMethod } from '@/lib/localCache'
 import { getDef, getDefault } from '@/lib/settingDefs'
+import { writeLocalSetting } from '@/lib/localSettings'
+import { settingsCloudSyncEnabled } from '@/lib/settingsScope'
 import {
   bumpPendingTries,
   clearPending,
@@ -143,6 +145,29 @@ export function setOfflineActive(active: boolean): void {
   refreshPending()
 }
 
+type AutoOfflineHandler = (reason: string, options?: { force?: boolean }) => void
+let autoOfflineHandler: AutoOfflineHandler | null = null
+
+/** 注册「自动离线」处理器：由 offline.ts 提供状态机，避免 dataSource 反向依赖离线模块 */
+export function setAutoOfflineHandler(fn: AutoOfflineHandler | null): void {
+  autoOfflineHandler = fn
+}
+
+/**
+ * 首屏加载失败降级到缓存时登记自动离线。
+ * 必须走 offline 模块的 enterOffline：它会持久化离线标记、更新顶栏状态并启动定期探测；
+ * 旧实现直接写 ds.offline = true，离线标记没落盘，tick 又因 isLocalMode() 早退不再探测 ——
+ * 于是服务器恢复后一直停在本地缓存模式，只能手动刷新页面。
+ */
+export function markAutoOffline(reason: string): void {
+  setOfflineActive(true)
+  if (autoOfflineHandler) {
+    autoOfflineHandler(reason, { force: true })
+    return
+  }
+  refreshPending()
+}
+
 function applyHooks(): void {
   const local = isLocalMode()
   setLocalWriteHook(local ? handleLocalWrite : null)
@@ -251,6 +276,11 @@ export async function captureSnapshot(): Promise<BoardBootstrap | null> {
 
 /** 把数据提供者写入云端设置（不受本地队列影响，始终直连） */
 export async function saveProviderToCloud(provider: string): Promise<void> {
+  // 非一体机（手机 / 平板 / 老师电脑）的数据源选择只存在本机，不写班级云端
+  if (!settingsCloudSyncEnabled.value) {
+    writeLocalSetting('server.provider', provider)
+    return
+  }
   const wasLocal = isLocalMode()
   if (wasLocal) {
     setLocalWriteHook(null)
@@ -316,10 +346,9 @@ export async function loadBoard(date?: string): Promise<BoardBootstrap> {
     if (entry && entry.snapshot) {
       ds.classId = classId
       ds.usingCache = true
-      // 服务器不通时不必等后台探测：直接标记自动离线，界面立刻进入本地缓存态
-      ds.offline = true
-      applyHooks()
-      refreshPending()
+      // 服务器不通时立刻进入缓存态，并登记为「自动离线」：
+      // 走离线状态机才能持久化标记、更新顶栏并继续定期探测，服务器恢复后自动回到在线。
+      markAutoOffline('无法连接服务器')
       return deriveSnapshotForDate(entry.snapshot, target)
     }
     ds.usingCache = false
@@ -695,6 +724,8 @@ function synthesise(method: WriteMethod, url: string, body: unknown, classId: st
 }
 
 function isLocalSetting(key: string): boolean {
+  // 非一体机（手机 / 平板 / 老师电脑）上的所有设置都只存本机，不进待同步队列
+  if (!settingsCloudSyncEnabled.value) return true
   return key === 'theme.mode' || getDef(key)?.local === true
 }
 

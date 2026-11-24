@@ -83,9 +83,15 @@ const NAV = [
   { key: 'audit', title: '审计日志', icon: 'mdi-clipboard-list-outline', href: '/audit' },
 ]
 
-/** 仅管理员可见全部菜单；教师账号只保留班级 */
-const canAdmin = computed(() => auth.user?.role === 'owner' || auth.user?.role === 'admin')
-const navItems = computed(() => (canAdmin.value ? NAV : NAV.filter((item) => item.key === 'classes')))
+/** 菜单按角色收敛：超级管理员看全部；管理员看概览/班级/通知/设备；教师只保留班级 */
+const ADMIN_NAV_KEYS = ['overview', 'classes', 'notices', 'devices']
+const isOwner = computed(() => auth.user?.role === 'owner')
+const isAdmin = computed(() => auth.user?.role === 'owner' || auth.user?.role === 'admin')
+const navItems = computed(() => {
+  if (isOwner.value) return NAV
+  if (isAdmin.value) return NAV.filter((item) => ADMIN_NAV_KEYS.includes(item.key))
+  return NAV.filter((item) => item.key === 'classes')
+})
 
 const currentTitle = computed(() => NAV.find((item) => item.key === props.active)?.title ?? '管理后台')
 const avatarText = computed(() => (auth.user?.name ?? auth.user?.username ?? '星').slice(0, 1))
@@ -113,9 +119,9 @@ async function logout(): Promise<void> {
 
 onMounted(async () => {
   if (!auth.user) await auth.loadMe()
-  if (!canAdmin.value && props.active === 'overview') {
-    window.location.replace('/classes')
-  }
+  // 没有当前页面权限的账号落到自己有权限的第一个页面，避免打开后被接口 403
+  const allowed = navItems.value.some((item) => item.key === props.active)
+  if (!allowed) window.location.replace(navItems.value[0]?.href ?? '/classes')
 })
 </script>
 

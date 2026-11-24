@@ -52,7 +52,7 @@
       </div>
       <div class="d-flex flex-wrap" style="gap: 10px">
         <v-btn prepend-icon="mdi-plus" color="primary" variant="flat" @click="go('/classes')">新建班级</v-btn>
-        <v-btn prepend-icon="mdi-account-plus" variant="tonal" @click="go('/users')">新建用户</v-btn>
+        <v-btn v-if="isOwner" prepend-icon="mdi-account-plus" variant="tonal" @click="go('/users')">新建用户</v-btn>
         <v-btn prepend-icon="mdi-monitor-dashboard" variant="text" @click="go('/devices')">查看设备</v-btn>
       </div>
     </v-card>
@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { getData } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
 import SfSkeleton from '@/components/skeleton/SfSkeleton.vue'
 
 interface Overview {
@@ -90,12 +91,18 @@ function go(path: string): void {
   window.location.href = path
 }
 
-const cards = computed(() => [
-  { key: 'class', label: '班级数', value: overview.classCount, icon: 'mdi-google-classroom', color: 'primary' },
-  { key: 'user', label: '用户数', value: overview.userCount, icon: 'mdi-account-multiple-outline', color: 'info' },
-  { key: 'device', label: '在线设备', value: overview.deviceCount, icon: 'mdi-monitor-dashboard', color: 'success' },
-  { key: 'homework', label: '今日作业', value: overview.homeworkToday, icon: 'mdi-book-open-page-variant', color: 'warning' },
-])
+const auth = useAuthStore()
+/** 概览只统计自己创建/加入的班级；用户数属于全站数据，仅超级管理员可见 */
+const isOwner = computed(() => auth.user?.role === 'owner')
+const cards = computed(() => {
+  const all = [
+    { key: 'class', label: '班级数', value: overview.classCount, icon: 'mdi-google-classroom', color: 'primary' },
+    { key: 'user', label: '用户数', value: overview.userCount, icon: 'mdi-account-multiple-outline', color: 'info' },
+    { key: 'device', label: '在线设备', value: overview.deviceCount, icon: 'mdi-monitor-dashboard', color: 'success' },
+    { key: 'homework', label: '今日作业', value: overview.homeworkToday, icon: 'mdi-book-open-page-variant', color: 'warning' },
+  ]
+  return isOwner.value ? all : all.filter((card) => card.key !== 'user')
+})
 
 onMounted(async () => {
   try {

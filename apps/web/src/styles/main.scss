@@ -65,7 +65,22 @@ body {
  * 窄屏维持原尺寸，避免手机上出现过大的元素。
  */
 html.ui-scale-desktop {
-  zoom: 1.15;
+  --app-ui-scale: 1.15;
+  zoom: var(--app-ui-scale);
+}
+
+/* ===== 弹窗遮罩层尺寸 =====
+ * zoom 会把整棵子树（含 position:fixed 的弹窗层）按 1.15 放大，但 100vw/100vh
+ * 仍按未缩放的视口算，于是遮罩层会大出 15%：矮弹窗看不出来，内容高的弹窗
+ * （教师端登录里有说明大图、版本日志）底部就顶出窗口，居中也会偏下。
+ * 这里把遮罩层按 zoom 倍率除回去，锁成真实可视区，内容再高只在弹窗内部滚动；
+ * 只作用于 .v-dialog，菜单、提示条等其它浮层保持原样。
+ */
+html.ui-scale-desktop .v-overlay.v-dialog {
+  width: calc(100vw / var(--app-ui-scale));
+  height: calc(100vh / var(--app-ui-scale));
+  right: auto;
+  bottom: auto;
 }
 
 /* ===== 页面壳高度约束 =====

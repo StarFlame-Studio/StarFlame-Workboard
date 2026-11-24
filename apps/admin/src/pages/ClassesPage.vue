@@ -14,6 +14,7 @@
           @keyup.enter="load"
         />
         <v-btn variant="tonal" @click="load">搜索</v-btn>
+        <span class="text-caption text-medium-emphasis">共 {{ total }} 个班级</span>
         <v-spacer />
         <v-btn prepend-icon="mdi-link-variant" variant="tonal" @click="openJoin">加入班级</v-btn>
         <v-btn v-if="canAdmin" color="primary" prepend-icon="mdi-plus" variant="flat" @click="openCreate">新建班级</v-btn>
@@ -156,8 +157,12 @@
           <v-text-field v-if="result.terminalAccessCode" :model-value="result.terminalAccessCode" label="一体机授权码" readonly>
             <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" @click="copy(result.terminalAccessCode)" /></template>
           </v-text-field>
-          <div v-if="result.terminalAccessCode" class="text-caption text-medium-emphasis">
-            设备登录需要「班级码 + 授权码」。更多授权码可在「进入看板 → 授权码」里创建。
+          <v-text-field v-if="result.teacherAccessCode" :model-value="result.teacherAccessCode" label="教师授权码" readonly>
+            <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" @click="copy(result.teacherAccessCode)" /></template>
+          </v-text-field>
+          <div v-if="result.terminalAccessCode || result.teacherAccessCode" class="text-caption text-medium-emphasis">
+            设备登录需要「班级码 + 授权码」：一体机用一体机授权码，老师在手机或办公室电脑上用教师授权码。
+            更多授权码、以及外泄后的一键重置，都在「进入看板 → 授权码」里。
           </div>
         </v-card-text>
         <v-card-actions>
@@ -188,7 +193,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useDisplay } from 'vuetify'
-import { deleteData, getData, patchData, postData } from '@/lib/api'
+import { deleteData, patchData, postData } from '@/lib/api'
+import { loadAllClasses } from '@/lib/classList'
 import { useAuthStore } from '@/stores/auth'
 import SfTableSkeleton from '@/components/skeleton/SfTableSkeleton.vue'
 
@@ -235,15 +241,16 @@ const loading = ref(false)
 const submitting = ref(false)
 const keyword = ref('')
 const pageSize = ref(20)
+const total = ref(0)
 const createOpen = ref(false)
 const editOpen = ref(false)
 const auth = useAuthStore()
-/** 仅 owner/admin 可新建、编辑、归档；教师账号可加入班级并进入看板 */
+/** owner/admin 可新建班级；列表里的班级已经是自己创建/加入的，管理员可编辑、归档，教师账号只读 */
 const canAdmin = computed(() => auth.user?.role === 'owner' || auth.user?.role === 'admin')
 const joinOpen = ref(false)
 const resultOpen = ref(false)
 const joinUid = ref('')
-const result = reactive({ classCode: '', classUid: '', terminalAccessCode: '' })
+const result = reactive({ classCode: '', classUid: '', terminalAccessCode: '', teacherAccessCode: '' })
 const snack = reactive({ show: false, text: '', color: 'success' })
 const form = reactive({ name: '', grade: '', school: '', classCode: '', classUid: '' })
 const editForm = reactive({ id: '', name: '', grade: '', school: '', classCode: '', classUid: '' })
@@ -263,12 +270,10 @@ function formatDate(value: string): string {
 async function load(): Promise<void> {
   loading.value = true
   try {
-    const response = await getData<{ items: ClassRow[]; total: number }>('/admin/classes', {
-      keyword: keyword.value,
-      page: 1,
-      pageSize: pageSize.value,
-    })
+    // 自动翻页取全：服务端每页最多 100 条，只取第一页时班级多了会显示不全
+    const response = await loadAllClasses<ClassRow>({ keyword: keyword.value })
     items.value = response.items
+    total.value = response.total
   } catch (error) {
     notify(error instanceof Error ? error.message : '加载失败', 'error')
   } finally {
@@ -314,7 +319,12 @@ async function submit(): Promise<void> {
   }
   submitting.value = true
   try {
-    const response = await postData<{ classCode: string; classUid: string; terminalAccessCode: string }>('/admin/classes', {
+    const response = await postData<{
+      classCode: string
+      classUid: string
+      terminalAccessCode: string
+      teacherAccessCode: string
+    }>('/admin/classes', {
       name: form.name.trim(),
       grade: form.grade.trim() || null,
       school: form.school.trim() || null,
@@ -325,6 +335,7 @@ async function submit(): Promise<void> {
     result.classCode = response.classCode
     result.classUid = response.classUid
     result.terminalAccessCode = response.terminalAccessCode
+    result.teacherAccessCode = response.teacherAccessCode ?? ''
     resultOpen.value = true
     await load()
   } catch (error) {

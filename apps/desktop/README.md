@@ -74,7 +74,12 @@ node apps/desktop/scripts/pack.mjs all
 
 - `StarflameWorkboard-<version>-<arch>.exe`：NSIS 安装包（可选安装目录、创建桌面与开始菜单快捷方式）
 - `StarflameWorkboard-<version>-<arch>.zip`：便携版（解压即用）
-- `latest.yml`：electron-updater 的更新清单（含 sha512 与 blockMap）
+- `latest.yml`：electron-updater 的更新清单（含 sha512 与 blockMap，以及客户端用来做数字比较的 `versionCode`）
+
+打包脚本会自动把 `packages/shared/src/constants.ts` 里的 `APP_VERSION_CODE` 写成 `latest.yml` 的 `versionCode`，
+并校验 `APP_VERSION` 与 `apps/desktop/package.json` 的 `version` 一致（不一致直接报错退出）。
+客户端（v1.2.1 起）优先按这个数字判断有没有新版本，所以**每次发布都必须递增 `APP_VERSION_CODE`**，
+否则显示版本号相同、只是重新构建的包，已安装的设备会认为「已经是最新」而收不到。
 
 发布目录与更新源一致：`https://zy.yanhuoyiyou.cn/desktop/<channel>/`，即服务器
 `/www/wwwroot/starflame-workboard-web/desktop/<channel>/`。发布步骤：

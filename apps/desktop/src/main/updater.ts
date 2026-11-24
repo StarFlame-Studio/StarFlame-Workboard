@@ -2,7 +2,8 @@ import { appendFileSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs
 import { statfs } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { app, powerMonitor } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater, type UpdateInfo } from 'electron-updater'
+import { APP_VERSION_CODE } from './env'
 import { getMainWindow } from './window'
 import { setQuitting } from './appState'
 import {
@@ -58,6 +59,32 @@ const MIN_FREE_BYTES = 700 * 1024 * 1024
 const SPACE_RETRY_MS = 15 * 60 * 1000
 
 let status: UpdateStatus = { state: 'idle' }
+
+/**
+ * 数字版本号检测（自 v1.2.1 起启用）。
+ *
+ * 背景：electron-updater 只比较 semver，`latest.yml` 里的 version 与已装版本相同时会直接判「无更新」
+ * （见 AppUpdater.isUpdateAvailable：`semver.eq(latestVersion, currentVersion) => false`），
+ * 所以「只换安装包、不改显示版本号」的覆盖发布会永远推不下去。
+ * 现在打包脚本会往 `latest.yml` 里写自定义字段 `versionCode`（来自 APP_VERSION_CODE），
+ * 这里优先按数字版本号比较；文件里没有这个字段（老服务端 / 手工改坏的清单）时退回原来的 semver 比较。
+ * isUpdateAvailable 在 electron-updater 的类型声明里标了 private，但运行时是实例方法，可以直接覆盖，
+ * 覆盖需要这个结构类型。
+ */
+interface UpdateAvailabilityChecker {
+  isUpdateAvailable: (info: UpdateInfo) => Promise<boolean>
+  isUpdateSupported: (info: UpdateInfo) => boolean | Promise<boolean>
+  isUserWithinRollout: (info: UpdateInfo) => boolean | Promise<boolean>
+}
+
+function readVersionCode(info: UpdateInfo): number | null {
+  const raw = (info as UpdateInfo & { versionCode?: unknown }).versionCode
+  const parsed =
+    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseInt(raw.trim(), 10) : Number.NaN
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return Math.trunc(parsed)
+}
+
 let intervalTimer: ReturnType<typeof setInterval> | null = null
 let firstTimer: ReturnType<typeof setTimeout> | null = null
 let retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -360,6 +387,23 @@ export function setupAutoUpdate(): void {
   autoUpdater.disableWebInstaller = true
   autoUpdater.allowPrerelease = false
   autoUpdater.logger = { info: (m) => log('info', m), warn: (m) => log('warn', m), error: (m) => log('error', m), debug: () => undefined }
+
+  // 「有更新吗」这一步改为数字版本号优先（见 readVersionCode 注释）。
+  // isUpdateAvailable 在 electron-updater 的类型声明里是 private，但运行时是实例方法，可直接覆盖。
+  const updaterInternals = autoUpdater as unknown as UpdateAvailabilityChecker
+  const semverIsUpdateAvailable = updaterInternals.isUpdateAvailable.bind(autoUpdater)
+  updaterInternals.isUpdateAvailable = async (info: UpdateInfo): Promise<boolean> => {
+    const remoteCode = readVersionCode(info)
+    if (remoteCode === null) return semverIsUpdateAvailable(info)
+    if (remoteCode <= APP_VERSION_CODE) {
+      // 数字版本号没涨：交回原来的 semver 判断，避免「漏 bump 数字版本号」时把正常的版本升级也拦掉
+      return semverIsUpdateAvailable(info)
+    }
+    log('info', `数字版本号比较：本机 ${APP_VERSION_CODE}，服务端 ${remoteCode}（显示版本 ${app.getVersion()} → ${info.version}）`)
+    // 数字版本号只能判断新旧，系统兼容性与灰度这两道检查仍沿用 electron-updater 的
+    if (!(await Promise.resolve(updaterInternals.isUpdateSupported(info)))) return false
+    return await Promise.resolve(updaterInternals.isUserWithinRollout(info))
+  }
 
   log('info', `自动更新启动：当前 v${app.getVersion()}，安装目录 ${app.getPath('exe')}`)
 

@@ -37,16 +37,25 @@
               教师授权码
               <v-chip v-if="created" class="ml-2" color="success" size="x-small" variant="tonal">刚刚自动创建</v-chip>
             </div>
-            <div class="d-flex align-center">
-              <span class="cred-value">{{ accessCode }}</span>
+            <div class="d-flex align-center flex-wrap" style="gap: 8px">
+              <span class="cred-value">{{ codeVisible ? accessCode : maskedAccessCode }}</span>
+              <v-btn
+                :icon="codeVisible ? 'mdi-eye-outline' : 'mdi-eye'"
+                :aria-label="codeVisible ? '隐藏教师授权码' : '显示教师授权码'"
+                :title="codeVisible ? '隐藏教师授权码' : '显示教师授权码'"
+                size="small"
+                variant="text"
+                @click="codeVisible = !codeVisible"
+              />
               <v-spacer />
               <v-btn prepend-icon="mdi-content-copy" size="small" variant="tonal" @click="copy(accessCode, '教师授权码已复制')">复制</v-btn>
             </div>
+            <div class="text-caption text-medium-emphasis mt-1">默认隐藏，点眼睛图标后显示；复制按钮始终可用。</div>
           </div>
 
           <div class="cred-box mb-4">
             <div class="text-caption text-medium-emphasis mb-1">预配链接（打开即自动登录教师端）</div>
-            <div class="link-text mb-2">{{ link }}</div>
+            <div class="link-text mb-2">{{ maskedLink }}</div>
             <div class="d-flex flex-wrap" style="gap: 8px">
               <v-btn color="primary" prepend-icon="mdi-content-copy" size="small" variant="elevated" @click="copy(link, '预配链接已复制')">复制链接</v-btn>
               <v-btn prepend-icon="mdi-open-in-new" size="small" variant="tonal" @click="openLink">打开链接</v-btn>
@@ -103,12 +112,21 @@ const snack = reactive({ show: false, text: '' })
 const classCode = computed(() => info.value?.classCode ?? '')
 const accessCode = computed(() => info.value?.accessCode ?? '')
 const created = computed(() => info.value?.created ?? false)
+// 授权码默认隐藏：码本身有写权限，一体机屏幕常挂在教室里，别人扫一眼就能拿走
+const codeVisible = ref(false)
+const maskedAccessCode = computed(() => '•'.repeat(Math.max(accessCode.value.length, 6)))
 const link = computed(() => {
   if (!info.value) return ''
   const params = new URLSearchParams()
   params.set('c', info.value.classCode)
   params.set('k', info.value.accessCode)
   return webUrl('/bind') + '?' + params.toString()
+})
+// 链接里带着同一个授权码（k=…），隐藏状态下同样打码，否则打码没意义
+const maskedLink = computed(() => {
+  const raw = link.value
+  if (codeVisible.value || !raw) return raw
+  return raw.replace(/([?&]k=)[^&]*/, '$1' + maskedAccessCode.value)
 })
 
 async function load(): Promise<void> {
@@ -147,7 +165,10 @@ async function copy(text: string, message: string): Promise<void> {
 watch(
   () => props.modelValue,
   (open) => {
-    if (open) void load()
+    if (open) {
+      codeVisible.value = false
+      void load()
+    }
   },
 )
 </script>
