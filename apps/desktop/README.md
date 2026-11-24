@@ -65,6 +65,21 @@ node apps/desktop/scripts/pack.mjs all
 打包会用 npmmirror 的 Electron / electron-builder 二进制镜像，可用环境变量覆盖：
 `ELECTRON_MIRROR`、`ELECTRON_BUILDER_BINARIES_MIRROR`。
 
+> **Linux 构建机（本仓库当前的打包环境）**
+>
+> - electron-builder 自带的 wine 11 工具链缺少 PE 内置库（`lib/wine/x86_64-windows`），
+>   跑不起 `signtool.exe`，因此 `electron-builder.config.cjs` 里用 Linux 原生的
+>   `osslsigncode` 作为自定义签名器（`win.signtoolOptions.sign`，SHA-256 + RFC3161 时间戳）；
+> - NSIS 生成卸载器仍需 wine，所以打包时要让 electron-builder 用系统 wine：
+>   `USE_SYSTEM_WINE=true`（需要已安装 `wine`、`wine32:i386`、`osslsigncode`）；
+> - 证书密码通过环境变量注入，例如：
+>
+>   ```bash
+>   USE_SYSTEM_WINE=true SF_CERT_PASSWORD='<pfx 密码>' node apps/desktop/scripts/pack.mjs all
+>   ```
+>
+> 没有证书时设置 `SF_SKIP_SIGN=1` 可跳过签名（产物未签名，不建议发布）。
+
 > 注意：DSH 环境会注入 `ELECTRON_RUN_AS_NODE=1`，直接跑 electron 会退化成纯 Node 进程。
 > 用脚本调用时务必删除该变量（`delete env.ELECTRON_RUN_AS_NODE`）。
 

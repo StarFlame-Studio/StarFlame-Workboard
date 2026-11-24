@@ -4,6 +4,15 @@
     <div class="bg-overlay" :style="bgOverlayStyle" />
   </template>
 
+  <!-- 液态玻璃需要「有东西可以折射」：没设壁纸时背景是一整片纯色，玻璃层折射出来
+       跟毛玻璃几乎没差别，看着像块灰板。这里补三团很淡的环境光斑当折射素材，
+       设了壁纸就不需要（壁纸本身就是素材）。不参与布局、不吃点击。 -->
+  <div v-if="ambientVisible" class="bg-ambient" aria-hidden="true">
+    <span class="ambient-orb ambient-orb--a" />
+    <span class="ambient-orb ambient-orb--b" />
+    <span class="ambient-orb ambient-orb--c" />
+  </div>
+
   <v-app-bar class="no-select" elevation="2" :height="isMobile ? 56 : 64">
     <v-app-bar-title class="board-title">
       <span class="board-brand">
@@ -563,7 +572,7 @@ import { onBoardChange, onLatency, onRealtimeStatus } from '@/lib/realtime'
 import { captureSnapshot, discardPending, ds, flushPending } from '@/lib/dataSource'
 import { initOffline, offlineUi, retryNow, setOfflineNotify, setOfflineReloadHandler } from '@/lib/offline'
 import { applyTheme, currentTheme, toggleTheme, type ThemeMode } from '@/lib/theme'
-import { applyCardTheme, cardThemeSetting } from '@/lib/cardTheme'
+import { applyCardTheme, cardThemeMode, cardThemeSetting } from '@/lib/cardTheme'
 import { localSettings, writeLocalSetting } from '@/lib/localSettings'
 import { isSmallDeviceMode, settingsCloudSyncEnabled } from '@/lib/settingsScope'
 import { applyLiquidGlassConfig, readLiquidGlassConfig } from '@/lib/liquidGlassSettings'
@@ -999,8 +1008,9 @@ watchEffect(() => {
   const mode = cardThemeSetting(localSettings.value)
   applyCardTheme(mode)
   applyLiquidGlassConfig(readLiquidGlassConfig(localSettings.value))
-  // 玻璃/液态玻璃才需要滚动降级：滚动期间临时关掉折射与背景模糊，停下再恢复（见 lib/glassScroll.ts）
-  if (mode === 'liquid' || mode === 'glass') startGlassScrollDegrade()
+  // 只有毛玻璃主题需要在滚动时临时关掉背景模糊（见 lib/glassScroll.ts）；
+  // 液态玻璃改为滚动中保持实时折射，不再降级。
+  if (mode === 'glass') startGlassScrollDegrade()
   else stopGlassScrollDegrade()
 })
 
@@ -1151,6 +1161,11 @@ const bgImageStyle = computed(() => ({
 const bgOverlayStyle = computed(() => ({
   backgroundColor: 'rgba(0,0,0,' + bg.value.opacity / 100 + ')',
 }))
+
+// 液态玻璃 + 没有壁纸时才铺环境光斑：有壁纸时壁纸本身就是折射素材，再叠一层会脏
+const ambientVisible = computed(
+  () => cardThemeMode.value === 'liquid' && !(bg.value.enabled && bg.value.url),
+)
 
 // 作业模板（课本 / 页码 / 快捷操作），存在班级 settings 里
 const homeworkTemplate = computed(() => {
@@ -2147,6 +2162,74 @@ onBeforeUnmount(() => {
 
 .bg-overlay {
   background: #000;
+}
+
+/* ---------- 液态玻璃的环境光斑 ----------
+   固定铺满视口、z-index 与壁纸同层（在卡片之下），不吃点击、不参与布局。
+   光斑是静态的（不做动画）：底下的东西一动，上面所有 backdrop-filter 区域
+   每帧都要重新采样，滚动会明显掉帧；静止的背景不会。 */
+.bg-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+
+.ambient-orb--a {
+  top: -14%;
+  left: -10%;
+  width: 54vw;
+  height: 54vw;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 138, 31, 0.5), rgba(255, 138, 31, 0) 68%);
+}
+
+.ambient-orb--b {
+  top: 4%;
+  right: -12%;
+  width: 48vw;
+  height: 48vw;
+  background: radial-gradient(circle at 50% 50%, rgba(126, 92, 255, 0.38), rgba(126, 92, 255, 0) 70%);
+}
+
+.ambient-orb--c {
+  bottom: -18%;
+  left: 18%;
+  width: 60vw;
+  height: 46vw;
+  background: radial-gradient(circle at 50% 50%, rgba(46, 158, 99, 0.32), rgba(46, 158, 99, 0) 70%);
+}
+
+/* 暗色主题：环境光斑要更亮一点，否则深色背景上等于没有（亮色主题反而要压淡，
+   不然整页像蒙了层彩纸） */
+.v-theme--dark .ambient-orb--a {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 138, 31, 0.72), rgba(255, 138, 31, 0) 68%);
+}
+
+.v-theme--dark .ambient-orb--b {
+  background: radial-gradient(circle at 50% 50%, rgba(126, 92, 255, 0.62), rgba(126, 92, 255, 0) 70%);
+}
+
+.v-theme--dark .ambient-orb--c {
+  background: radial-gradient(circle at 50% 50%, rgba(46, 158, 99, 0.52), rgba(46, 158, 99, 0) 70%);
+}
+
+.v-theme--light .ambient-orb--a {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 138, 31, 0.34), rgba(255, 138, 31, 0) 68%);
+}
+
+.v-theme--light .ambient-orb--b {
+  background: radial-gradient(circle at 50% 50%, rgba(126, 92, 255, 0.26), rgba(126, 92, 255, 0) 70%);
+}
+
+.v-theme--light .ambient-orb--c {
+  background: radial-gradient(circle at 50% 50%, rgba(46, 158, 99, 0.22), rgba(46, 158, 99, 0) 70%);
 }
 
 .main-window {

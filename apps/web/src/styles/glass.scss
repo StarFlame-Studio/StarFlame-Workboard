@@ -147,12 +147,13 @@ html.ct-glass .wall-foot .v-chip.v-chip:hover {
   box-shadow: var(--glass-shadow) !important;
 }
 
-/* ---------- 滚动降级 ----------
+/* ---------- 滚动降级（只针对毛玻璃主题） ----------
    lib/glassScroll.ts 在滚动时给 <html> 挂 .ct-glass-scrolling。
    毛玻璃的 backdrop-filter 在滚动时每帧都要重新采样背景，一屏二十来块
    区域叠加会明显掉帧；滚动过程中人眼也看不清磨砂效果，先关掉，
-   停下 160ms 后自动恢复（半透明底色、描边、投影都保留）。 */
-html.ct-glass-scrolling :is(.v-card, .v-btn, .v-chip, .wall-card) {
+   停下 160ms 后自动恢复（半透明底色、描边、投影都保留）。
+   液态玻璃不走这条路：它要的就是滑动时的实时折射，见 LiquidGlass.vue。 */
+html.ct-glass.ct-glass-scrolling :is(.v-card, .v-btn, .v-chip, .wall-card) {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }

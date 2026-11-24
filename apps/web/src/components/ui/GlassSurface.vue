@@ -16,17 +16,10 @@
 import { isRef, type CSSProperties, type Ref } from 'vue';
 
 /**
- * 位移贴图缓存（本组件相对 vue-bits 原版唯一的性能改动，模块级 = 所有实例共享）。
- *
- * 原版每次尺寸/参数变化都会重新拼一整段 SVG 字符串、encodeURIComponent 成 data URL，
- * 再塞给 feImage —— 看板一屏十几张卡片，尺寸其实只有寥寥几种，每个实例各算一遍纯属浪费。
- * 这里按「尺寸 + 会影响贴图内容的参数」做键，同键直接复用同一张 data URL。
- *
- * 安全性：data URL 是一个独立 SVG 文档，里面的 id（red-grad-xxx / soft-xxx）只在
- * 该文档内需要唯一，不同实例共用同一张图不会互相覆盖。
+ * 位移贴图由 lib/liquidGlassMap.ts 生成：按圆角矩形距离场只弯边缘一圈，用 canvas
+ * 栅格化（长边 ≤384px）而不是拼一整张 SVG，尺寸/参数缓存也在那边。
+ * 本组件只负责换算「多大、弯多宽、弯多深」这几个数。
  */
-const DISPLACEMENT_CACHE_LIMIT = 64;
-const displacementCache = new Map<string, string>();
 
 export type GlassSurfaceChannel = 'R' | 'G' | 'B';
 
@@ -48,6 +41,7 @@ export interface GlassSurfaceProps {
   brightness?: number;
   opacity?: number;
   blur?: number;
+  backdropBlur?: number;
   displace?: number;
   backgroundOpacity?: number;
   saturation?: number;
@@ -371,7 +365,7 @@ const bendShape = (trace: ShapeTrace, edge: number, softness: number, calm: numb
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useId, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import {
   acquireGlassFilter,
   glassFilterSignature,
@@ -379,6 +373,7 @@ import {
   supportsGlassSvgFilter,
   type GlassFilterSpec
 } from '@/lib/glassFilter';
+import { buildLiquidGlassMap } from '@/lib/liquidGlassMap';
 import { observeResize, unobserveResize } from '@/lib/sharedObservers';
 
 const props = withDefaults(defineProps<GlassSurfaceProps>(), {
@@ -389,6 +384,7 @@ const props = withDefaults(defineProps<GlassSurfaceProps>(), {
   brightness: 50,
   opacity: 0.93,
   blur: 11,
+  backdropBlur: 0,
   displace: 0,
   backgroundOpacity: 0,
   saturation: 1,
@@ -407,11 +403,6 @@ const props = withDefaults(defineProps<GlassSurfaceProps>(), {
   style: () => ({})
 });
 
-const uniqueId = (useId() || 'glass').replace(/:/g, '-');
-const redGradId = `red-grad-${uniqueId}`;
-const blueGradId = `blue-grad-${uniqueId}`;
-const softId = `soft-${uniqueId}`;
-
 const svgSupported = ref(false);
 const checked = ref(false);
 const webglFailed = ref(false);
@@ -429,50 +420,38 @@ let shapeMap = '';
 let mapUrl = '';
 let filterSignature = '';
 
+/**
+ * 位移贴图参数：把「卡片多大、边缘弯多宽、弯多深」换算成 lib/liquidGlassMap.ts 的入参。
+ *
+ * · 带宽随短边缩放（borderWidth 是比例，0.07 约等于短边的 3.5%），但有上下限：
+ *   小卡片不至于整块都在弯，大卡片也不会弯出一条几十像素的糊边；
+ * · 弯的深度取带宽的 0.95 倍左右 —— 再深就会把远处的背景整块搬过来，看着像错位而不是折射；
+ * · 设置里的「折射强度」和红/绿/蓝偏移合成一个倍率，调的是深度，不改贴图结构。
+ */
 const generateDisplacementMap = (): { key: string; url: string } => {
   const element = containerRef.value;
   // 用 offsetWidth/offsetHeight（布局像素、整数）而不是 getBoundingClientRect()：
   // · 后者会强制同步布局，一屏十几张卡片就是十几次；
   // · 后者返回的是缩放后的小数（html 上还有 zoom:1.15），每个实例都不同，
   //   按尺寸做键的贴图缓存会一个都命中不了。
-  // 贴图只用相对比例（feImage 是 preserveAspectRatio="none" 铺满滤镜区），
-  // 用布局像素和用缩放像素画出来完全一样。
-  const actualWidth = Math.max(1, Math.round(element?.offsetWidth || 400));
-  const actualHeight = Math.max(1, Math.round(element?.offsetHeight || 200));
-  const cacheKey = `${actualWidth}x${actualHeight}|${props.borderRadius}|${props.borderWidth}|${props.brightness}|${props.opacity}|${props.blur}|${props.mixBlendMode}`;
-  const cachedMap = displacementCache.get(cacheKey);
-  if (cachedMap) return { key: cacheKey, url: cachedMap };
-  const edgeSize = Math.min(actualWidth, actualHeight) * (props.borderWidth * 0.5);
-
-  const svgContent = `
-      <svg width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="${redGradId}" x1="100%" y1="0%" x2="0%" y2="0%">
-            <stop offset="0%" stop-color="#0000"/>
-            <stop offset="100%" stop-color="red"/>
-          </linearGradient>
-          <linearGradient id="${blueGradId}" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#0000"/>
-            <stop offset="100%" stop-color="blue"/>
-          </linearGradient>
-          <filter id="${softId}" filterUnits="userSpaceOnUse" x="0" y="0" width="${actualWidth}" height="${actualHeight}" color-interpolation-filters="sRGB">
-            <feGaussianBlur stdDeviation="${props.blur}" />
-          </filter>
-        </defs>
-        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" fill="black"></rect>
-        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" rx="${props.borderRadius}" fill="url(#${redGradId})" />
-        <rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" rx="${props.borderRadius}" fill="url(#${blueGradId})" style="mix-blend-mode: ${props.mixBlendMode}" />
-        <rect x="${edgeSize}" y="${edgeSize}" width="${actualWidth - edgeSize * 2}" height="${actualHeight - edgeSize * 2}" rx="${props.borderRadius}" fill="hsl(0 0% ${props.brightness}% / ${props.opacity})" filter="url(#${softId})" />
-      </svg>
-    `;
-
-  const url = `data:image/svg+xml,${encodeURIComponent(svgContent)}`;
-  if (displacementCache.size >= DISPLACEMENT_CACHE_LIMIT) {
-    const oldest = displacementCache.keys().next();
-    if (!oldest.done) displacementCache.delete(oldest.value);
-  }
-  displacementCache.set(cacheKey, url);
-  return { key: cacheKey, url };
+  const width = Math.max(1, Math.round(element?.offsetWidth || 400));
+  const height = Math.max(1, Math.round(element?.offsetHeight || 200));
+  const shortSide = Math.min(width, height);
+  const scale = props.distortionScale + (props.redOffset + props.greenOffset + props.blueOffset) / 3;
+  // 位移深度刻意压浅：边缘只要「轻轻把背景吸进来」就够了，弯得太深会把
+  // 远处的背景整块搬过来，观感上会变成背景错位而不是折射。
+  const strength = Math.min(Math.max(Math.abs(scale) / 300, 0.12), 1.8);
+  const band = Math.min(Math.max(shortSide * props.borderWidth * 0.5, 2.5), 44);
+  const depth = Math.min(band * 0.95 * strength, band * 1.6);
+  return buildLiquidGlassMap({
+    width,
+    height,
+    radius: props.borderRadius,
+    band,
+    shift: depth,
+    scale,
+    softness: props.blur
+  });
 };
 
 /**
@@ -517,13 +496,17 @@ const updateFilter = () => {
   // 保留「卡片边缘把背景掰弯」这个主要观感，节点数降到 2 个；
   // 设置里的红/绿/蓝通道偏移改为取平均后叠加到位移倍率上，仍然能调节折射强弱。
   const offset = (props.redOffset + props.greenOffset + props.blueOffset) / 3;
+  // 背景模糊（backdropBlur）和散景（displace）合进同一条滤镜链：CSS 侧只留
+  // backdrop-filter: url(#id)，不再叠一层 blur() —— 实测那层 CSS blur 是滚动时
+  // 最大的单项开销（51.8fps → 24.7fps），挪进滤镜链后整条链只光栅化一次。
   const spec: GlassFilterSpec = {
     mapKey: map.key,
     mapUrl: map.url,
     scale: props.distortionScale + offset,
     xChannel: props.xChannel,
     yChannel: props.yChannel,
-    displace: props.displace
+    displace: Math.hypot(Math.max(0, props.displace), Math.max(0, props.backdropBlur)),
+    saturate: props.saturation
   };
   const signature = glassFilterSignature(spec);
   if (signature === filterSignature && sharedFilterId.value) return;
@@ -916,7 +899,11 @@ const containerStyle = computed(() => {
     borderRadius: `${props.borderRadius}px`,
     '--glass-frost': props.backgroundOpacity,
     '--glass-saturation': props.saturation,
-    '--filter-id': sharedFilterId.value ? `url(#${sharedFilterId.value})` : 'blur(0px)',
+    // 不支持 url(#…) 形式 backdrop-filter 的浏览器（Safari / Firefox）没有共享滤镜，
+    // 这里退回普通背景模糊，至少保住毛玻璃质感，而不是一层不透明色块。
+    '--filter-id': sharedFilterId.value
+      ? `url(#${sharedFilterId.value})`
+      : `blur(${Math.max(0, props.backdropBlur)}px)`,
     ...shapeStyle
   } as CSSProperties;
 });

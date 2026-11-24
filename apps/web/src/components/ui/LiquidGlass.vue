@@ -34,6 +34,7 @@
       :background-opacity="0"
       :border-radius="radius"
       :blur="config.refractBlur"
+      :backdrop-blur="config.backdropBlur"
       :brightness="config.brightness"
       :displace="config.displace"
       :distortion-scale="config.distortionScale"
@@ -119,29 +120,18 @@ html.ct-liquid .lg-host {
   pointer-events: none;
 }
 
-/* 组件在 SVG 折射模式下只做位移、不模糊；看板是密集文字，
-   加一点柔化才看得清，并且把折射的彩边收细。半径由设置里的「背景模糊」控制。 */
+/* 折射层的 backdrop-filter：整条滤镜链（位移 + 背景模糊 + 饱和度）都在
+   lib/glassFilter.ts 生成的那个 <filter> 里，这里只引用它，不再叠 CSS 滤镜 ——
+   少一遍全区域采样，滚动时明显更顺。
+   兜底值必须是合法滤镜：--filter-id 还没就绪时用普通的模糊 + 饱和，
+   整条声明依然生效，不会因为 none 把后面的效果一起丢掉。 */
 html.ct-liquid .glass-surface--svg.lg-layer {
-  /* 兜底值必须是合法的滤镜函数：--filter-id 还没就绪时 blur(0px) 不产生任何效果，
-     整条声明依然生效，不会因为 none 让后面的饱和/模糊一起被丢弃。 */
-  backdrop-filter: var(--filter-id, blur(0px)) saturate(var(--glass-saturation, 1)) blur(var(--lg-blur, 3.5px));
-  -webkit-backdrop-filter: var(--filter-id, blur(0px)) saturate(var(--glass-saturation, 1)) blur(var(--lg-blur, 3.5px));
+  backdrop-filter: var(--filter-id, blur(var(--lg-blur, 3.5px)) saturate(var(--glass-saturation, 1)));
+  -webkit-backdrop-filter: var(--filter-id, blur(var(--lg-blur, 3.5px)) saturate(var(--glass-saturation, 1)));
 }
 
-/* 滚动降级（lib/glassScroll.ts 在滚动时给 <html> 挂这个类）：
-   滚动时折射层每帧都要重采样背景 + 重跑 SVG 滤镜，是最贵的场景；
-   运动中人眼也看不出折射，所以临时换成普通模糊，霜层/高光/描边/投影都不变。
-   停下 160ms 后类名移除，折射自动回来。 */
-html.ct-glass-scrolling .glass-surface--svg.lg-layer {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-/* 胶囊的普通毛玻璃在滚动时同样每帧采样背景，一起停掉（霜层底色还在，看不出差别） */
-html.ct-glass-scrolling .lg-pill,
-html.ct-glass-scrolling .lg-pill > .v-btn,
-html.ct-glass-scrolling .lg-pill > .v-chip {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
+/* 滚动时不再降级：折射是实时渲染的。
+   早期版本会在滚动时把 backdrop-filter 整个关掉换普通模糊，看起来「玻璃突然变塑料」，
+   而且滚动停下后还要 160ms 才恢复。现在整条链只有一次光栅化，滚动成本可以接受，
+   液态玻璃在滚动/滑动过程中保持实时折射（毛玻璃主题的滚动降级仍在 styles/glass.scss）。 */
 </style>

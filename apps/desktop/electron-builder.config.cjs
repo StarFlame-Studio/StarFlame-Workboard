@@ -13,6 +13,35 @@ const path = require('node:path')
 const CERT_FILE = path.join(__dirname, 'build/certs/starflame.pfx')
 // SF_SKIP_SIGN=1 可在没有 Windows 签名工具链的构建机上跳过签名
 const hasCert = fs.existsSync(CERT_FILE) && process.env.SF_SKIP_SIGN !== '1'
+
+// 构建机是 Linux，electron-builder 自带的 wine 缺少 PE 内置库、跑不起 signtool.exe，
+// 所以这里用 Linux 原生 osslsigncode 直接签名（支持 SHA-256 + RFC3161 时间戳）。
+const { execFileSync } = require('node:child_process')
+function signWithOssl(config) {
+  const file = config.path
+  const pfx = config.cscInfo && 'file' in config.cscInfo ? config.cscInfo.file : CERT_FILE
+  const pass = (config.cscInfo && config.cscInfo.password) || process.env.SF_CERT_PASSWORD || ''
+  const out = file + '.signed'
+  const baseArgs = [
+    'sign',
+    '-pkcs12', pfx,
+    '-pass', pass,
+    '-n', '焰火工作室',
+    '-i', 'https://zy.yanhuoyiyou.cn',
+    '-h', config.hash === 'sha1' ? 'sha1' : 'sha256',
+    '-in', file,
+    '-out', out,
+  ]
+  try {
+    execFileSync('osslsigncode', [...baseArgs, '-ts', 'http://timestamp.digicert.com'], { stdio: 'inherit' })
+  } catch (e) {
+    // 时间戳服务不可达时退化为不带时间戳签名，避免整包发布被阻断
+    console.warn('[sign] 时间戳服务失败，改为不带时间戳签名：' + (e && e.message))
+    execFileSync('osslsigncode', baseArgs, { stdio: 'inherit' })
+  }
+  fs.renameSync(out, file)
+}
+
 const signOptions = hasCert
   ? {
       certificateFile: CERT_FILE,
@@ -20,6 +49,7 @@ const signOptions = hasCert
       publisherName: '焰火工作室',
       signingHashAlgorithms: ['sha256'],
       rfc3161TimeStampServer: 'http://timestamp.digicert.com',
+      sign: signWithOssl,
     }
   : undefined
 
