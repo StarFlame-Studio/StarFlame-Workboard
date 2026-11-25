@@ -1,10 +1,7 @@
 /**
  * 共享的 IntersectionObserver / ResizeObserver。
  *
- * 液态玻璃一屏十几张卡片，每个 <LiquidGlass> 与 <GlassSurface> 原来各自 new 一个
- * IntersectionObserver / ResizeObserver：十几份观察器做的是同一件事，浏览器每次
- * 布局或滚动都要逐个分发。这里改成模块级单例（IntersectionObserver 按 rootMargin
- * 分桶），用 target → 回调的 Map 分发，行为与「每个实例各建一个」完全一致。
+ * 多张卡片共用观察器，通过目标元素分发回调。IntersectionObserver 按 rootMargin 复用。
  */
 
 type VisibilityCallback = (visible: boolean) => void

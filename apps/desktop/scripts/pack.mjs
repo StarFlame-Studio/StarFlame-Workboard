@@ -10,14 +10,11 @@ const { CHANNELS } = requireHere('./channels.cjs')
 const pkgDir = resolve(import.meta.dirname, '..')
 const builderCli = resolve(pkgDir, 'node_modules/electron-builder/out/cli/cli.js')
 
+const { versionCode } = requireHere('./release-version.cjs')
+
 // latest.yml 缺省只有 semver 版本号；客户端自 v1.2.1 起优先比较数字版本号，
 // 所以这里把 APP_VERSION_CODE 作为自定义字段 versionCode 写进去（GenericProvider 会原样透传）。
 const constantsText = readFileSync(resolve(pkgDir, '../../packages/shared/src/constants.ts'), 'utf8')
-const versionCode = Number((/APP_VERSION_CODE\s*=\s*(\d+)/.exec(constantsText) || [])[1] || 0)
-if (!Number.isFinite(versionCode) || versionCode <= 0) {
-  console.error('[pack] 无法从 packages/shared/src/constants.ts 读取 APP_VERSION_CODE')
-  process.exit(1)
-}
 
 // 显示版本号必须与共享常量一致，否则 latest.yml 的 version 与客户端自身的 version 会对不上
 const sharedVersion = ((/APP_VERSION\s*=\s*'([^']+)'/.exec(constantsText) || [])[1] || '').trim()

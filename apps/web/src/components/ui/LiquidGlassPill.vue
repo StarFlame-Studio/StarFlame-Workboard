@@ -37,12 +37,12 @@ html.ct-liquid .lg-pill > .v-chip {
   z-index: 1;
 }
 
-/* 胶囊的「玻璃」本体：便宜的模糊 + 提饱和，替掉原来的 SVG 折射层。
+/* 胶囊使用独立的背景模糊参数与轻量的 CSS 滤镜。
    圆角必须自己给，否则模糊背景是按矩形裁的。 */
 html.ct-liquid .lg-pill {
   border-radius: 999px;
-  -webkit-backdrop-filter: blur(10px) saturate(1.35);
-  backdrop-filter: blur(10px) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--lg-pill-blur, 10px));
+  backdrop-filter: blur(var(--lg-pill-blur, 10px));
   transition: transform 0.18s ease;
 }
 

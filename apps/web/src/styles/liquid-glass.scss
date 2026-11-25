@@ -1,18 +1,12 @@
 /* ============================================================
    液态玻璃主题 · 全局规则（宿主皮肤）
 
-   材质：vue-bits 的 GlassSurface（components/ui/GlassSurface.vue）分两半：
+   延续 PR #1 的两层材质：
      · 折射 —— <LiquidGlass> 铺在卡片里当背景层，负责 backdrop-filter: url(#…) 的位移，
        让背后的画面沿圆角被真正弯折；
      · 皮肤 —— 这份 CSS 负责霜层 / 135° 高光 / 玻璃厚度 / 外投影。
 
-   为什么皮肤留在宿主上而不是让组件全包：霜层是纯色、高光是线性渐变，
-   两者都对「平移」不敏感 —— 压在折射层下面被滤一遍和不滤完全一样，
-   于是可以省掉一层 DOM，也不会让组件自带皮肤盖掉这里调好的暖色参数。
-
-   胶囊按钮（底栏功能按钮 / 空科目按钮 / 空科目 chip）没有折射层：
-   GlassSurface 需要一块显式尺寸的宿主，而 v-btn / v-chip 是 inline-flex
-   靠内容撑宽度的，塞进去会改尺寸。它们的材质等价于组件的 --fallback 分支。
+   胶囊按钮和 chip 使用普通背景模糊，保留原有的内容宽度和圆角。
 
    开关：lib/cardTheme.ts 往 <html> 挂 .ct-liquid（卡片主题 = 液态玻璃时）。
    放在 main.scss 最后 @use，用来盖掉 base.css 里 .v-card / .v-btn 的底色与阴影。
@@ -25,23 +19,24 @@
 
 html.ct-liquid {
   /* ---- 亮色：冷白玻璃 ---- */
-  --lg-frost: rgba(255, 255, 255, 0.24);
-  --lg-pill-frost: rgba(255, 255, 255, 0.3);
+  --lg-frost: rgba(255, 255, 255, 0.14);
+  --lg-pill-frost: rgba(255, 255, 255, 0.30);
+  --lg-pill-blur: 10px;
   --lg-rim: rgba(255, 255, 255, 0.8);
 
-  /* 135° 斜向反光：左上偏亮、右下带一点回光，与组件的 .glass-surface__sheen 同形 */
+  /* 135° 斜向反光：左上偏亮、右下带一点回光 */
   --lg-sheen: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.39) 0%,
-    rgba(255, 255, 255, 0.07) 36%,
-    rgba(255, 255, 255, 0.01) 62%,
-    rgba(255, 255, 255, 0.19) 100%
+    rgba(255, 255, 255, 0.276) 0%,
+    rgba(255, 255, 255, 0.048) 36%,
+    rgba(255, 255, 255, 0.006) 62%,
+    rgba(255, 255, 255, 0.132) 100%
   );
   --lg-pill-sheen: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.07) 45%,
-    rgba(255, 255, 255, 0.22) 100%
+    rgba(255, 255, 255, 0.30) 0%,
+    rgba(255, 255, 255, 0.042) 45%,
+    rgba(255, 255, 255, 0.132) 100%
   );
 
   /* inset 前两条对应组件 .glass-surface--svg 的「玻璃厚度」，第三条是顶部高光；
@@ -61,25 +56,25 @@ html.ct-liquid {
     0 6px 18px rgba(17, 17, 26, 0.05);
 }
 
-/* ---- 深色：暖黑玻璃，描边转为亮色 ----
+/* ---- 深色：暖灰玻璃，描边转为亮色 ----
    v-theme--dark 可能挂在 <html> 本身，也可能挂在 .v-application 上，两种都覆盖 */
 html.ct-liquid:is(.v-theme--dark, :has(.v-theme--dark)) {
-  --lg-frost: rgba(20, 17, 14, 0.26);
-  --lg-pill-frost: rgba(34, 28, 23, 0.4);
+  --lg-frost: rgba(94, 89, 85, 0.14);
+  --lg-pill-frost: rgba(127, 122, 118, 0.24);
   --lg-rim: rgba(255, 255, 255, 0.32);
 
   --lg-sheen: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.03) 36%,
+    rgba(255, 255, 255, 0.128) 0%,
+    rgba(255, 255, 255, 0.024) 36%,
     rgba(255, 255, 255, 0) 62%,
-    rgba(255, 255, 255, 0.09) 100%
+    rgba(255, 255, 255, 0.064) 100%
   );
   --lg-pill-sheen: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.02) 45%,
-    rgba(255, 255, 255, 0.08) 100%
+    rgba(255, 255, 255, 0.128) 0%,
+    rgba(255, 255, 255, 0.016) 45%,
+    rgba(255, 255, 255, 0.064) 100%
   );
 
   --lg-shadow:
@@ -90,11 +85,9 @@ html.ct-liquid:is(.v-theme--dark, :has(.v-theme--dark)) {
     0 8px 24px rgba(0, 0, 0, 0.22),
     0 16px 56px rgba(0, 0, 0, 0.18);
   --lg-pill-shadow:
-    inset 0 0 1px 1px rgba(255, 255, 255, 0.24),
-    inset 0 0 6px 2px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 3px 10px rgba(0, 0, 0, 0.24),
-    0 6px 18px rgba(0, 0, 0, 0.18);
+    inset 0 0 1px 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 6px 2px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.288);
 }
 
 /* ---------- 卡片：作业卡 / 出勤卡 / 空科目卡 / 时间卡 / 一言卡 / 考试卡 / 作业墙 ----------
@@ -131,12 +124,41 @@ $lg-pills:
 @each $card in $lg-cards {
   html.ct-liquid #{$card} {
     @include lg.surface;
+
+    /* 描边盖在取样层之上，既不改变布局，也不会被强模糊吃掉。 */
+    > .lg-layer::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 1px var(--lg-rim);
+    }
   }
 }
 
 @each $pill in $lg-pills {
   html.ct-liquid #{$pill} {
     @include lg.pill;
+  }
+}
+
+/* 全屏按钮另有实体描边；只隐藏其颜色，保留按钮尺寸和键盘焦点环。 */
+html.ct-liquid:is(.v-theme--dark, :has(.v-theme--dark)) .home-actions .act.act-full {
+  border-color: transparent !important;
+}
+
+/* 浮动工具栏仍由原来的固定容器定位。只保留内层的实时折射，
+   避免外层的磨砂滤镜先模糊背景，或把内层的取样限制在工具栏内部。
+   选择器覆盖旧的亮暗 hover 底色及 base.css 的通用卡片投影。 */
+html.ct-liquid .floating-toolbar.floating-toolbar.v-card {
+  @include lg.pill(absolute);
+  border-color: var(--lg-rim) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+
+  > .toolbar-buttons {
+    position: relative;
+    z-index: 1;
   }
 }
 

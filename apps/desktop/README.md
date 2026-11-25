@@ -87,8 +87,8 @@ node apps/desktop/scripts/pack.mjs all
 
 每个通道产出：
 
-- `StarflameWorkboard-<version>-<arch>.exe`：NSIS 安装包（可选安装目录、创建桌面与开始菜单快捷方式）
-- `StarflameWorkboard-<version>-<arch>.zip`：便携版（解压即用）
+- `StarflameWorkboard-<version>-<versionCode>-<arch>.exe`：NSIS 安装包（可选安装目录、创建桌面与开始菜单快捷方式）
+- `StarflameWorkboard-<version>-<versionCode>-<arch>.zip`：便携版（解压即用）
 - `latest.yml`：electron-updater 的更新清单（含 sha512 与 blockMap，以及客户端用来做数字比较的 `versionCode`）
 
 打包脚本会自动把 `packages/shared/src/constants.ts` 里的 `APP_VERSION_CODE` 写成 `latest.yml` 的 `versionCode`，
@@ -107,6 +107,7 @@ node apps/desktop/scripts/pack.mjs win10-x64
 
 NSIS 安装包内的 `nsis-require-win7.nsh` / `nsis-require-win10.nsh` 会在安装前校验系统版本，
 不满足时直接提示并中止，避免用户在错误系统上装出打不开的程序。
+覆盖发布时先上传带构建号的新文件，再切换 `latest.yml`；不要覆盖旧清单还在引用的包。显示版本号更低但构建号更高时（如 1.2.2/1012 → 1.2.1/1013），旧客户端仍按数字版本号自动升级。
 
 ## 主进程能力（window.sfDesktop）
 

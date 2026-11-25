@@ -15,7 +15,7 @@ export const APP_VERSION = '1.2.1'
  * 这个数字同时是桌面端自动更新的判断依据（打包脚本会把它写进 latest.yml 的 versionCode），
  * 所以每次发版必须严格递增：显示版本号不变、只换构建的覆盖发布也靠它才能推下去。
  */
-export const APP_VERSION_CODE = 1012
+export const APP_VERSION_CODE = 1013
 
 export const HEADER_DEVICE_TOKEN = 'x-device-token'
 export const HEADER_REQUEST_ID = 'x-request-id'

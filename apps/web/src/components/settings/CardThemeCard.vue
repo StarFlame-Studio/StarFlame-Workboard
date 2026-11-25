@@ -172,16 +172,16 @@ function resetAll(): void {
   position: absolute;
 }
 
-/* 液态玻璃：同一套混入 + 深色底板专用的那套参数（厚度描边、135° 高光、柔和投影） */
+/* 液态玻璃：小预览只模拟背景柔化与高光，真实折射在看板上可见。 */
 .ct-card--liquid {
-  --lg-frost: rgba(38, 32, 44, 0.42);
+  --lg-frost: rgba(94, 89, 85, 0.14);
   --lg-rim: rgba(255, 255, 255, 0.34);
   --lg-sheen: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.34) 0%,
-    rgba(255, 255, 255, 0.06) 36%,
+    rgba(255, 255, 255, 0.128) 0%,
+    rgba(255, 255, 255, 0.024) 36%,
     rgba(255, 255, 255, 0) 62%,
-    rgba(255, 255, 255, 0.16) 100%
+    rgba(255, 255, 255, 0.064) 100%
   );
   --lg-shadow:
     inset 0 0 2px 1px rgba(255, 255, 255, 0.3),
@@ -189,6 +189,8 @@ function resetAll(): void {
     inset 0 1px 0 rgba(255, 255, 255, 0.24),
     0 8px 20px rgba(0, 0, 0, 0.28);
   @include lg.surface;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 
   /* 混入里带了 position: relative（为看板上的真实卡片准备），预览这里要还原成绝对定位 */
   position: absolute;

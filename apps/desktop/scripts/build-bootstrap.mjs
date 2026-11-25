@@ -4,6 +4,7 @@ import { mkdirSync, existsSync, renameSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { readFileSync } from 'node:fs'
+import releaseVersion from './release-version.cjs'
 
 const pkgDir = resolve(import.meta.dirname, '..')
 const buildDir = join(pkgDir, 'build')
@@ -11,6 +12,7 @@ const outDir = join(pkgDir, 'release/bootstrap')
 // 版本号单一来源：package.json 的 version
 const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8'))
 const version = pkg.version
+const { versionCode } = releaseVersion
 mkdirSync(outDir, { recursive: true })
 
 // 复用 electron-builder 缓存里的 NSIS（含 NSISdl 插件），避免额外下载
@@ -30,7 +32,7 @@ if (!makensis) {
 
 // Windows 版 makensis 用 /V2 /D...，POSIX 版只认 -V2 -D...
 const optPrefix = makensis.toLowerCase().endsWith('.exe') ? '/' : '-'
-const args = [optPrefix + 'V2', optPrefix + 'DAPP_VERSION=' + version, join(buildDir, 'bootstrap.nsi')]
+const args = [optPrefix + 'V2', optPrefix + 'DAPP_VERSION=' + version, optPrefix + 'DAPP_VERSION_CODE=' + versionCode, join(buildDir, 'bootstrap.nsi')]
 const r = spawnSync(makensis, args, {
   cwd: buildDir,
   stdio: 'inherit',
@@ -41,6 +43,6 @@ if (r.status !== 0) {
 }
 
 const produced = join(buildDir, 'bootstrap-out.exe')
-const target = join(outDir, 'StarflameWorkboard-Setup-' + version + '.exe')
+const target = join(outDir, 'StarflameWorkboard-Setup-' + version + '-' + versionCode + '.exe')
 renameSync(produced, target)
 console.log('[bootstrap] 完成 → ' + target)

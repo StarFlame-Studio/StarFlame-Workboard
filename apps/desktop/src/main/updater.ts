@@ -395,10 +395,8 @@ export function setupAutoUpdate(): void {
   updaterInternals.isUpdateAvailable = async (info: UpdateInfo): Promise<boolean> => {
     const remoteCode = readVersionCode(info)
     if (remoteCode === null) return semverIsUpdateAvailable(info)
-    if (remoteCode <= APP_VERSION_CODE) {
-      // 数字版本号没涨：交回原来的 semver 判断，避免「漏 bump 数字版本号」时把正常的版本升级也拦掉
-      return semverIsUpdateAvailable(info)
-    }
+    // 清单有构建号时只按构建号判断，防止旧的 1.2.2/1012 缓存把 1.2.1/1013 回退。
+    if (remoteCode <= APP_VERSION_CODE) return false
     log('info', `数字版本号比较：本机 ${APP_VERSION_CODE}，服务端 ${remoteCode}（显示版本 ${app.getVersion()} → ${info.version}）`)
     // 数字版本号只能判断新旧，系统兼容性与灰度这两道检查仍沿用 electron-updater 的
     if (!(await Promise.resolve(updaterInternals.isUpdateSupported(info)))) return false

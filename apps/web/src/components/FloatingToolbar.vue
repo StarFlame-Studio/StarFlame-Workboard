@@ -2,6 +2,7 @@
   <div class="floating-toolbar-container">
     <v-slide-y-transition>
       <v-card :class="{ 'toolbar-expanded': isExpanded }" class="floating-toolbar" elevation="4" rounded="xl">
+        <liquid-glass capsule />
         <v-btn-group class="toolbar-buttons" variant="text">
           <v-btn v-ripple class="toolbar-btn" icon="mdi-chevron-left" title="查看昨天" variant="text" @click="$emit('prev-day')" />
           <v-btn
@@ -72,6 +73,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import LiquidGlass from './ui/LiquidGlass.vue'
 
 withDefaults(
   defineProps<{

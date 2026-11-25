@@ -28,6 +28,11 @@ Unicode true
 !ifndef APP_VERSION
   !define APP_VERSION "1.0.1"
 !endif
+!ifdef APP_VERSION_CODE
+  !define PACKAGE_VERSION "${APP_VERSION}-${APP_VERSION_CODE}"
+!else
+  !define PACKAGE_VERSION "${APP_VERSION}"
+!endif
 !define APP_PUBLISHER "焰火工作室"
 ; NSISdl 只支持 http（不支持 https），静态下载目录两者都监听
 !define BASE_URL "http://zy.yanhuoyiyou.cn/desktop"
@@ -138,18 +143,18 @@ Function .onInit
       StrCpy $TargetChannel "win10-x64"
       StrCpy $TargetLabel "Windows 10 / 11"
       StrCpy $TargetArch "64 位"
-      StrCpy $TargetFile "StarflameWorkboard-${APP_VERSION}-x64.exe"
+      StrCpy $TargetFile "StarflameWorkboard-${PACKAGE_VERSION}-x64.exe"
     ${Else}
       StrCpy $TargetChannel "win10-ia32"
       StrCpy $TargetLabel "Windows 10 / 11"
       StrCpy $TargetArch "32 位"
-      StrCpy $TargetFile "StarflameWorkboard-${APP_VERSION}-ia32.exe"
+      StrCpy $TargetFile "StarflameWorkboard-${PACKAGE_VERSION}-ia32.exe"
     ${EndIf}
   ${ElseIf} ${AtLeastWin7}
     StrCpy $TargetChannel "win7-ia32"
     StrCpy $TargetLabel "Windows 7 / 8 / 8.1"
     StrCpy $TargetArch "32 位通用"
-    StrCpy $TargetFile "StarflameWorkboard-${APP_VERSION}-ia32.exe"
+    StrCpy $TargetFile "StarflameWorkboard-${PACKAGE_VERSION}-ia32.exe"
   ${Else}
     MessageBox MB_ICONSTOP "${APP_NAME} 需要 Windows 7 SP1 或更高版本的系统。$\r$\n$\r$\n发布者：${APP_PUBLISHER}"
     Abort

@@ -1,8 +1,8 @@
 /**
  * 液态玻璃 · 参数运行时
  *
- * 设置页里 `liquid.*` 那 27 个数值，在这里翻译成两样东西：
- *   1. 折射层参数 —— 交给 <LiquidGlass> 当 GlassSurface 的 props；
+ * 设置页的 `liquid.*` 数值用于两层材质：
+ *   1. 折射层参数 —— 由 <LiquidGlass> 读取；
  *   2. 皮肤参数 —— 注入一个 <style>，把 `--lg-*` 变量写到 html 上（亮暗各一套，
  *      靠 CSS 选择器分流，所以切换深浅色不需要重算）。
  *
@@ -13,18 +13,14 @@ import { ref } from 'vue'
 import { getDefault } from './settingDefs'
 
 export interface LiquidGlassConfig {
-  /** 折射（组件 props） */
+  /** 折射层 */
   distortionScale: number
   borderWidth: number
   refractBlur: number
   saturation: number
-  brightness: number
-  neutralOpacity: number
   displace: number
-  redOffset: number
-  greenOffset: number
-  blueOffset: number
   backdropBlur: number
+  pillBlur: number
   /** 皮肤（CSS 变量，亮暗各一套） */
   frostLight: number
   frostDark: number
@@ -47,31 +43,27 @@ export interface LiquidGlassConfig {
 /** 每个字段对应的设置 key + 兜底值（兜底只在设置项被删掉时用得上） */
 const PARAMS: Array<{ field: keyof LiquidGlassConfig; key: string; fallback: number }> = (
   [
-    ['distortionScale', 'liquid.distortionScale', -210],
-    ['borderWidth', 'liquid.borderWidth', 0.09],
+    ['distortionScale', 'liquid.distortionScale', -280],
+    ['borderWidth', 'liquid.borderWidth', 0.16],
     ['refractBlur', 'liquid.refractBlur', 3],
-    ['saturation', 'liquid.saturation', 1.5],
-    ['brightness', 'liquid.brightness', 50],
-    ['neutralOpacity', 'liquid.neutralOpacity', 1],
+    ['saturation', 'liquid.saturation', 1.15],
     ['displace', 'liquid.displace', 0],
-    ['redOffset', 'liquid.redOffset', 0],
-    ['greenOffset', 'liquid.greenOffset', 10],
-    ['blueOffset', 'liquid.blueOffset', 20],
-    ['backdropBlur', 'liquid.backdropBlur', 3],
-    ['frostLight', 'liquid.frostLight', 0.24],
-    ['frostDark', 'liquid.frostDark', 0.26],
+    ['backdropBlur', 'liquid.backdropBlur', 6],
+    ['pillBlur', 'liquid.pillBlur', 10],
+    ['frostLight', 'liquid.frostLight', 0.14],
+    ['frostDark', 'liquid.frostDark', 0.14],
     ['rimLight', 'liquid.rimLight', 0.8],
     ['rimDark', 'liquid.rimDark', 0.32],
-    ['sheenLight', 'liquid.sheenLight', 0.85],
-    ['sheenDark', 'liquid.sheenDark', 1.15],
+    ['sheenLight', 'liquid.sheenLight', 0.6],
+    ['sheenDark', 'liquid.sheenDark', 0.8],
     ['thicknessLight', 'liquid.thicknessLight', 0.06],
     ['thicknessDark', 'liquid.thicknessDark', 0.24],
     ['glowLight', 'liquid.glowLight', 0.05],
     ['glowDark', 'liquid.glowDark', 0.12],
     ['outerLight', 'liquid.outerLight', 1],
     ['outerDark', 'liquid.outerDark', 1],
-    ['pillFrostLight', 'liquid.pillFrostLight', 0.3],
-    ['pillFrostDark', 'liquid.pillFrostDark', 0.4],
+    ['pillFrostLight', 'liquid.pillFrostLight', 0.30],
+    ['pillFrostDark', 'liquid.pillFrostDark', 0.24],
     ['pillSheenLight', 'liquid.pillSheenLight', 1],
     ['pillSheenDark', 'liquid.pillSheenDark', 1],
   ] as const
@@ -87,7 +79,7 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassConfig = PARAMS.reduce((acc, item
   return acc
 }, {} as LiquidGlassConfig)
 
-/** 当前生效的配置：<LiquidGlass> 的 props 直接读它 */
+/** 当前生效的材质配置 */
 export const liquidGlassConfig = ref<LiquidGlassConfig>({ ...LIQUID_GLASS_DEFAULTS })
 
 export function readLiquidGlassConfig(settings: Record<string, unknown> | undefined | null): LiquidGlassConfig {
@@ -119,9 +111,21 @@ function varsBlock(config: LiquidGlassConfig, dark: boolean): string {
   const glow = clampAlpha(dark ? config.glowDark : config.glowLight)
   const outer = Math.max(0, dark ? config.outerDark : config.outerLight)
 
-  const frostBase = dark ? '20, 17, 14' : '255, 255, 255'
-  const pillBase = dark ? '34, 28, 23' : '255, 255, 255'
+  // 提亮暗色底色，保持不透明度独立，避免用更厚的霜层盖住壁纸。
+  const frostBase = dark ? '94, 89, 85' : '255, 255, 255'
+  const pillBase = dark ? '127, 122, 118' : '255, 255, 255'
   const shadowInk = dark ? '0, 0, 0' : '17, 17, 26'
+  // 暗色胶囊只保留浅色内高光，避免暗影在透亮底色上围成一圈黑边。
+  const pillInk = dark ? '255, 255, 255' : shadowInk
+  const pillShadow = [
+    `inset 0 0 1px 1px rgba(${pillInk}, ${round(thickness * (dark ? 0.5 : 1))})`,
+    `inset 0 0 6px 2px rgba(${pillInk}, ${round(glow * (dark ? 0.5 : 0.8))})`,
+    `inset 0 1px 0 rgba(255, 255, 255, ${round(clampAlpha(rim * 0.9))})`,
+    ...(!dark ? [
+      '0 3px 10px rgba(17, 17, 26, 0.06)',
+      `0 6px 18px rgba(17, 17, 26, ${round(0.05 * outer)})`,
+    ] : []),
+  ]
 
   // 高光渐变的 4 个色标，倍率作用在 alpha 上（暗色本身就更淡）
   const sheenStops = dark ? [0.16, 0.03, 0, 0.08] : [0.46, 0.08, 0.01, 0.22]
@@ -133,8 +137,8 @@ function varsBlock(config: LiquidGlassConfig, dark: boolean): string {
   return `
   --lg-frost: rgba(${frostBase}, ${round(clampAlpha(frost))});
   --lg-pill-frost: rgba(${pillBase}, ${round(clampAlpha(pillFrost))});
+  --lg-pill-blur: ${Math.max(0, config.pillBlur)}px;
   --lg-rim: rgba(255, 255, 255, ${round(clampAlpha(rim))});
-  --lg-blur: ${round(Math.max(0, config.backdropBlur))}px;
   --lg-sheen: linear-gradient(
     135deg,
     rgba(255, 255, 255, ${sheenAt(0)}) 0%,
@@ -155,12 +159,7 @@ function varsBlock(config: LiquidGlassConfig, dark: boolean): string {
     0 4px 16px rgba(${shadowInk}, ${round(0.05 * outer)}),
     0 8px 24px rgba(${shadowInk}, ${round(0.05 * outer)}),
     0 16px 56px rgba(${shadowInk}, ${round(0.05 * outer)});
-  --lg-pill-shadow:
-    inset 0 0 1px 1px rgba(${shadowInk}, ${thickness}),
-    inset 0 0 6px 2px rgba(${shadowInk}, ${round(glow * 0.8)}),
-    inset 0 1px 0 rgba(255, 255, 255, ${round(clampAlpha(rim * 0.9))}),
-    0 3px 10px rgba(${shadowInk}, ${round(dark ? 0.24 : 0.06)}),
-    0 6px 18px rgba(${shadowInk}, ${round((dark ? 0.18 : 0.05) * outer)});`
+  --lg-pill-shadow: ${pillShadow.join(', ')};`
 }
 
 function buildCss(config: LiquidGlassConfig): string {

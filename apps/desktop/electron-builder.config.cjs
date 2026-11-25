@@ -5,6 +5,8 @@ const channel = process.env.DESKTOP_CHANNEL || 'win10-x64'
 const ch = CHANNELS[channel]
 if (!ch) throw new Error('未知通道：' + channel)
 
+const { versionCode } = require('./scripts/release-version.cjs')
+
 const nsisExtra = ch.minWindows === '10' ? 'build/nsis-require-win10.nsh' : 'build/nsis-require-win7.nsh'
 
 // 代码签名：构建机上有 build/certs/starflame.pfx 才启用，缺证书时自动跳过（不阻断打包）
@@ -79,7 +81,8 @@ module.exports = {
       { target: 'nsis', arch: [ch.arch] },
       { target: 'zip', arch: [ch.arch] },
     ],
-    artifactName: 'StarflameWorkboard-${version}-' + ch.arch + '.${ext}',
+    // A rebuild must get a fresh URL; cached manifests still refer to the old bytes.
+    artifactName: 'StarflameWorkboard-${version}-' + versionCode + '-' + ch.arch + '.${ext}',
     requestedExecutionLevel: 'asInvoker',
     ...(signOptions ? { signtoolOptions: signOptions } : {}),
   },

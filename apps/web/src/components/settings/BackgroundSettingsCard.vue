@@ -166,9 +166,11 @@ const uploadWarning = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const urlPresets = [
-  { label: 'Bing 每日壁纸', url: 'https://bing.img.run/1920x1080.php' },
-  { label: '随机风景', url: 'https://api.dujin.org/bing/1920.php' },
-  { label: '随机二次元', url: 'https://api.dujin.org/pic/1920/1080' },
+  { label: '山湖日落', url: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?fit=crop&w=1920&h=1080&fm=jpg&q=85' },
+  { label: '山水风光', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?fit=crop&w=1920&h=1080&fm=jpg&q=85' },
+  { label: '森林晨光', url: 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?fit=crop&w=1920&h=1080&fm=jpg&q=85' },
+  { label: '森林秘境', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?fit=crop&w=1920&h=1080&fm=jpg&q=85' },
+  { label: '随机风景', url: 'https://picsum.photos/1920/1080' },
 ]
 
 const enabled = computed(() => Boolean(props.model['background.enabled']))
